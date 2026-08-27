@@ -32,7 +32,7 @@ const EDGE_MARGIN: f64 = 8.0;
 fn build_menu<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
     let app_menu = Submenu::with_items(
         handle,
-        "timey",
+        "Timey",
         true,
         &[
             &MenuItem::with_id(handle, OPEN_SETTINGS, "Settings…", true, Some("CmdOrCtrl+,"))?,
@@ -60,7 +60,7 @@ fn tray_menu<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<M
         &[
             &MenuItem::with_id(handle, OPEN_SETTINGS, "Settings…", true, None::<&str>)?,
             &PredefinedMenuItem::separator(handle)?,
-            &MenuItem::with_id(handle, QUIT, "Quit timey", true, None::<&str>)?,
+            &MenuItem::with_id(handle, QUIT, "Quit Timey", true, None::<&str>)?,
         ],
     )
 }

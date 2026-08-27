@@ -22,7 +22,7 @@ import { InvoiceDialog } from "./components/InvoiceDialog";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { Button, InvoiceIcon, SettingsIcon } from "./components/ui";
+import { Button, CloseDot, InvoiceIcon, SettingsIcon } from "./components/ui";
 import "./styles.css";
 
 type View = "month" | "settings";
@@ -137,18 +137,10 @@ export default function App() {
           leave the tray's right-click menu as the only way in.
         */}
         <div className="titlebar">
-          {/* Close sits top-left where a macOS window puts it. */}
-          <span className="titlebar-leading">
-            <Button
-              variant="quiet"
-              onClick={() => void getCurrentWindow().hide()}
-              aria-label="Close timey"
-              title="Close"
-            >
-              ✕
-            </Button>
-          </span>
-          <span className="titlebar-name">timey</span>
+          {/* Close sits top-left where a macOS window puts it, and looks the
+              part: the glyph only appears on hover, as it does in a title bar. */}
+          <CloseDot onClick={() => void getCurrentWindow().hide()} />
+          <span className="titlebar-name">Timey</span>
           <span className="titlebar-actions">
             <Button
               variant="quiet"
@@ -157,6 +149,7 @@ export default function App() {
               title="New invoice"
             >
               <InvoiceIcon />
+              Invoices
             </Button>
             <Button
               variant="quiet"

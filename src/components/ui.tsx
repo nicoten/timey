@@ -300,3 +300,17 @@ export function InvoiceIcon() {
     </svg>
   );
 }
+
+/**
+ * The macOS close button: a red disc whose glyph appears on hover, the way a
+ * real title bar behaves.
+ */
+export function CloseDot({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="close-dot" onClick={onClick} aria-label="Close Timey" title="Close">
+      <svg width="6" height="6" viewBox="0 0 6 6" aria-hidden="true" focusable="false">
+        <path d="M1 1l4 4M5 1L1 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
