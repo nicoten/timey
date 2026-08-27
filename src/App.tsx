@@ -137,7 +137,17 @@ export default function App() {
           leave the tray's right-click menu as the only way in.
         */}
         <div className="titlebar">
-          <span />
+          {/* Close sits top-left where a macOS window puts it. */}
+          <span className="titlebar-leading">
+            <Button
+              variant="quiet"
+              onClick={() => void getCurrentWindow().hide()}
+              aria-label="Close timey"
+              title="Close"
+            >
+              ✕
+            </Button>
+          </span>
           <span className="titlebar-name">timey</span>
           <span className="titlebar-actions">
             <Button
@@ -155,16 +165,6 @@ export default function App() {
               title={view === "settings" ? "Back to calendar" : "Settings"}
             >
               <SettingsIcon />
-            </Button>
-            {/* The popover no longer dismisses itself, so it needs a way out
-                that does not depend on knowing about Escape or the tray icon. */}
-            <Button
-              variant="quiet"
-              onClick={() => void getCurrentWindow().hide()}
-              aria-label="Close timey"
-              title="Close"
-            >
-              ✕
             </Button>
           </span>
         </div>
