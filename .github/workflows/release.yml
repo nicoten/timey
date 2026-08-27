@@ -1,12 +1,25 @@
 name: release
 
-# Pushing a version tag is the release action. The tag must match the version in
-# the manifests, or the updater will advertise the wrong one — use
-# `pnpm set-version` to keep them in step.
+# Manual only, deliberately.
+#
+# Releases are currently built locally, because that machine holds the Developer
+# ID certificate and the Apple credentials needed to sign and notarize. A runner
+# has neither, so a tag-triggered build here would publish an ad-hoc-signed,
+# un-notarized app over the good artifacts — and Gatekeeper would refuse it on
+# any Mac that downloaded it.
+#
+# To make this the release path, add the Developer ID certificate as a base64
+# .p12 (APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD) along with APPLE_ID,
+# APPLE_PASSWORD, APPLE_TEAM_ID and APPLE_SIGNING_IDENTITY as repository
+# secrets, pass them through to the tauri-action step, and restore the tag
+# trigger below.
+#
+#   on:
+#     push:
+#       tags:
+#         - "v*"
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 jobs:
   release:
