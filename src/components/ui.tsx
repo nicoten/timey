@@ -339,3 +339,72 @@ export function CloseDot({ onClick }: { onClick: () => void }) {
     </button>
   );
 }
+
+/*
+ * Row action glyphs. Stroked at the same weight as the header icons so the two
+ * sets read as one family, and sized to stay legible at 14px.
+ */
+
+const GLYPH = {
+  width: 14,
+  height: 14,
+  viewBox: "0 0 16 16",
+  "aria-hidden": true,
+  focusable: "false",
+} as const;
+
+const STROKE = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.3,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
+
+export function EditIcon() {
+  return (
+    <svg {...GLYPH}>
+      <g {...STROKE}>
+        <path d="M10.6 2.9l2.5 2.5" />
+        <path d="M11.3 2.2a1.3 1.3 0 011.8 1.8L6 11.2l-3.1.9.9-3.1z" />
+      </g>
+    </svg>
+  );
+}
+
+export function ArchiveIcon() {
+  return (
+    <svg {...GLYPH}>
+      <g {...STROKE}>
+        <path d="M2.2 3.2h11.6v2.4H2.2z" />
+        <path d="M3.2 5.6v7.2h9.6V5.6" />
+        <path d="M6.4 8.4h3.2" />
+      </g>
+    </svg>
+  );
+}
+
+export function RestoreIcon() {
+  return (
+    <svg {...GLYPH}>
+      <g {...STROKE}>
+        <path d="M2.2 3.2h11.6v2.4H2.2z" />
+        <path d="M3.2 5.6v7.2h9.6V5.6" />
+        <path d="M8 11.6V7.8M6.4 9.4L8 7.8l1.6 1.6" />
+      </g>
+    </svg>
+  );
+}
+
+export function DeleteIcon() {
+  return (
+    <svg {...GLYPH}>
+      <g {...STROKE}>
+        <path d="M2.8 4.6h10.4" />
+        <path d="M6.2 4.6V3.2h3.6v1.4" />
+        <path d="M4.4 4.6l.7 8.2h5.8l.7-8.2" />
+        <path d="M6.8 7v3.6M9.2 7v3.6" />
+      </g>
+    </svg>
+  );
+}

@@ -28,8 +28,12 @@ import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
 import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
 import type { Updates } from "../lib/useUpdates";
 import {
+  ArchiveIcon,
   Button,
+  DeleteIcon,
   DropdownField,
+  EditIcon,
+  RestoreIcon,
   Empty,
   ErrorNote,
   Field,
@@ -396,17 +400,26 @@ function ClientRow({
           <Button variant="quiet" onClick={() => setExpanded(!expanded)}>
             {expanded ? "Hide contacts" : "Contacts"}
           </Button>
-          <Button variant="quiet" onClick={onEdit}>
-            Edit
+          {/* Icon-only, so the accessible name carries the row it belongs to —
+              otherwise a screen reader hears "Edit" a dozen times over. */}
+          <Button variant="quiet" onClick={onEdit} aria-label={`Edit ${client.name}`} title="Edit">
+            <EditIcon />
           </Button>
           <Button
             variant="quiet"
             onClick={() => void run(() => clientSetArchived(client.id, client.archivedAt === null))}
+            aria-label={`${client.archivedAt === null ? "Archive" : "Restore"} ${client.name}`}
+            title={client.archivedAt === null ? "Archive" : "Restore"}
           >
-            {client.archivedAt === null ? "Archive" : "Restore"}
+            {client.archivedAt === null ? <ArchiveIcon /> : <RestoreIcon />}
           </Button>
-          <Button variant="danger" onClick={() => void run(() => clientDelete(client.id))}>
-            Delete
+          <Button
+            variant="danger"
+            onClick={() => void run(() => clientDelete(client.id))}
+            aria-label={`Delete ${client.name}`}
+            title="Delete"
+          >
+            <DeleteIcon />
           </Button>
         </div>
       </div>
@@ -463,11 +476,21 @@ function ContactList({ clientId }: { clientId: number }) {
               <span className="ledger-sub">{contact.email}</span>
             </div>
             <div className="ledger-actions">
-              <Button variant="quiet" onClick={() => setDialog({ mode: "edit", contact })}>
-                Edit
+              <Button
+                variant="quiet"
+                onClick={() => setDialog({ mode: "edit", contact })}
+                aria-label={`Edit ${contact.name}`}
+                title="Edit"
+              >
+                <EditIcon />
               </Button>
-              <Button variant="danger" onClick={() => void run(() => contactDelete(contact.id))}>
-                Delete
+              <Button
+                variant="danger"
+                onClick={() => void run(() => contactDelete(contact.id))}
+                aria-label={`Delete ${contact.name}`}
+                title="Delete"
+              >
+                <DeleteIcon />
               </Button>
             </div>
           </div>
@@ -611,19 +634,31 @@ function ProjectSection({
                 {project.archivedAt !== null && <span className="tag">Archived</span>}
               </div>
               <div className="ledger-actions">
-                <Button variant="quiet" onClick={() => setDialog({ mode: "edit", project })}>
-                  Edit
+                <Button
+                  variant="quiet"
+                  onClick={() => setDialog({ mode: "edit", project })}
+                  aria-label={`Edit ${project.code}`}
+                  title="Edit"
+                >
+                  <EditIcon />
                 </Button>
                 <Button
                   variant="quiet"
                   onClick={() =>
                     void run(() => projectSetArchived(project.id, project.archivedAt === null))
                   }
+                  aria-label={`${project.archivedAt === null ? "Archive" : "Restore"} ${project.code}`}
+                  title={project.archivedAt === null ? "Archive" : "Restore"}
                 >
-                  {project.archivedAt === null ? "Archive" : "Restore"}
+                  {project.archivedAt === null ? <ArchiveIcon /> : <RestoreIcon />}
                 </Button>
-                <Button variant="danger" onClick={() => void run(() => projectDelete(project.id))}>
-                  Delete
+                <Button
+                  variant="danger"
+                  onClick={() => void run(() => projectDelete(project.id))}
+                  aria-label={`Delete ${project.code}`}
+                  title="Delete"
+                >
+                  <DeleteIcon />
                 </Button>
               </div>
             </div>

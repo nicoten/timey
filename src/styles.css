@@ -996,6 +996,16 @@ body {
   border-top: 1px solid var(--rule-soft);
 }
 
+/*
+ * A section header already draws the line above its first row. Keeping the
+ * ledger's own top border too rendered two rules with the header's margin
+ * between them. The border stays for a ledger that stands on its own, such as
+ * the project list inside the invoice dialog.
+ */
+.section-head + .ledger {
+  border-top: 0;
+}
+
 .ledger-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1039,8 +1049,16 @@ body {
 
 .ledger-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   align-items: center;
+}
+
+/* Square targets for the icon-only row actions. */
+.ledger-actions .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 6px;
 }
 
 .tag {
