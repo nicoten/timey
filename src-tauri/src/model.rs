@@ -67,4 +67,6 @@ pub struct EntryDetail {
     pub project_name: String,
     pub client_id: i64,
     pub client_name: String,
+    /// The project's rate at read time, for computing what the entry earned.
+    pub hourly_rate_cents: Option<i64>,
 }

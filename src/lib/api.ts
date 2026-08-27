@@ -63,6 +63,8 @@ export interface EntryDetail {
   projectName: string;
   clientId: number;
   clientName: string;
+  /** The project's rate at read time, for computing what the entry earned. */
+  hourlyRateCents: number | null;
 }
 
 export interface DailyTotal {

@@ -10,12 +10,6 @@ use tauri::Manager;
 /// `~/Library/Application Support/com.nicotejera.timey/timey.db`.
 const DATABASE_FILE: &str = "timey.db";
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {name}! You've been greeted from Rust!")
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -32,7 +26,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
             commands::clients_list,
             commands::client_create,
             commands::client_rename,

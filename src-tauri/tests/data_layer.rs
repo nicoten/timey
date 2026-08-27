@@ -340,6 +340,21 @@ async fn listing_entries_joins_project_and_client_detail() {
     assert_eq!(entries[0].project_name, "Website");
     assert_eq!(entries[0].client_id, client_id);
     assert_eq!(entries[0].client_name, "Acme");
+    assert_eq!(entries[0].hourly_rate_cents, None);
+}
+
+#[tokio::test]
+async fn listing_entries_carries_the_projects_rate_for_earnings() {
+    let db = fresh_db().await;
+    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let project = db::projects::create(&db, client.id, "ACME-001", "Website", None, Some(15_000))
+        .await
+        .unwrap();
+    db::entries::create(&db, project.id, "Work", "2026-08-27T09:15", 90).await.unwrap();
+
+    let entries = db::entries::list_in_range(&db, "2026-08-27", "2026-08-28", None).await.unwrap();
+
+    assert_eq!(entries[0].hourly_rate_cents, Some(15_000));
 }
 
 #[tokio::test]

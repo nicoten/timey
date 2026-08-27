@@ -1,51 +1,150 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+import {
+  clientsList,
+  entriesList,
+  errorMessage,
+  projectsList,
+  type Client,
+  type EntryDetail,
+  type Project,
+} from "./lib/api";
+import { currentMonth, monthEndExclusive, monthStart, type MonthCursor } from "./lib/dates";
+import { DayPanel } from "./components/DayPanel";
+import { MonthView } from "./components/MonthView";
+import { SettingsView } from "./components/SettingsView";
+import { Button } from "./components/ui";
+import "./styles.css";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+type View = "month" | "settings";
+
+export default function App() {
+  const [view, setView] = useState<View>("month");
+  const [cursor, setCursor] = useState<MonthCursor>(currentMonth);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const [entries, setEntries] = useState<EntryDetail[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingMonth, setLoadingMonth] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadMonth = useCallback(async (target: MonthCursor) => {
+    setLoadingMonth(true);
+    try {
+      setEntries(await entriesList(monthStart(target), monthEndExclusive(target)));
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(errorMessage(caught));
+    } finally {
+      setLoadingMonth(false);
+    }
+  }, []);
+
+  // Archived rows are loaded too: settings needs to show and restore them, while
+  // the entry form offers only live projects.
+  const loadCatalog = useCallback(async () => {
+    try {
+      const [loadedClients, loadedProjects] = await Promise.all([
+        clientsList(true),
+        projectsList(null, true),
+      ]);
+      setClients(loadedClients);
+      setProjects(loadedProjects);
+      setLoadError(null);
+    } catch (caught) {
+      setLoadError(errorMessage(caught));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadMonth(cursor);
+  }, [cursor, loadMonth]);
+
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
+
+  // Escape closes the day panel.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setSelectedDay(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  function changeMonth(next: MonthCursor) {
+    setCursor(next);
+    // The open day belongs to the month being left.
+    setSelectedDay(null);
   }
 
+  const liveProjects = useMemo(
+    () => projects.filter((project) => project.archivedAt === null),
+    [projects],
+  );
+
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="app">
+      <div className="rail">
+        <span className="wordmark">timey</span>
+        {view === "month" ? (
+          <Button variant="quiet" onClick={() => setView("settings")}>
+            Settings
+          </Button>
+        ) : (
+          <Button variant="quiet" onClick={() => setView("month")}>
+            Calendar
+          </Button>
+        )}
       </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+      <div className="workspace">
+        <main className="sheet">
+          {loadError !== null && (
+            <p className="error" role="alert">
+              {loadError}
+            </p>
+          )}
+
+          {view === "month" ? (
+            <MonthView
+              cursor={cursor}
+              onCursorChange={changeMonth}
+              entries={entries}
+              loading={loadingMonth}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+            />
+          ) : (
+            <SettingsView
+              clients={clients}
+              projects={projects}
+              onChanged={() => {
+                void loadCatalog();
+                void loadMonth(cursor);
+              }}
+              onBack={() => setView("month")}
+            />
+          )}
+        </main>
+
+        {view === "month" && selectedDay !== null && (
+          <DayPanel
+            date={selectedDay}
+            entries={entries}
+            projects={liveProjects}
+            clients={clients}
+            onClose={() => setSelectedDay(null)}
+            onChanged={() => void loadMonth(cursor)}
+            onOpenSettings={() => {
+              setSelectedDay(null);
+              setView("settings");
+            }}
+          />
+        )}
+      </div>
+    </div>
   );
 }
-
-export default App;

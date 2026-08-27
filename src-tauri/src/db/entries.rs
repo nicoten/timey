@@ -29,7 +29,8 @@ pub async fn list_in_range(
                p.code              AS "project_code!",
                p.name              AS "project_name!",
                c.id                AS "client_id!",
-               c.name              AS "client_name!"
+               c.name              AS "client_name!",
+               p.hourly_rate_cents AS "hourly_rate_cents"
         FROM entries e
         JOIN projects p ON p.id = e.project_id
         JOIN clients  c ON c.id = p.client_id
