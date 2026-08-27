@@ -219,7 +219,13 @@ body {
 
 .cell {
   position: relative;
-  display: block;
+  /* A button centres its content vertically via an anonymous box that
+     `display: block` does not override, which pushed the date to mid-cell.
+     A column flex container starting at flex-start puts it at the top. */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   min-height: 92px;
   padding: 7px 9px;
   overflow: hidden;
