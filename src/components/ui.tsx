@@ -95,6 +95,8 @@ export interface DropdownOption {
   /** Radix rejects an empty string, so callers map "none" to null themselves. */
   value: string;
   label: string;
+  /** Shown but unpickable, for a choice the rest of the form rules out. */
+  disabled?: boolean;
 }
 
 /**
@@ -128,13 +130,19 @@ export function Dropdown({
         <Select.Icon className="select-caret">▾</Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="select-content" position="popper" sideOffset={4}>
+        <Select.Content
+          className="select-content"
+          position="popper"
+          sideOffset={4}
+          collisionPadding={8}
+        >
           <Select.ScrollUpButton className="select-scroll">▴</Select.ScrollUpButton>
           <Select.Viewport className="select-viewport">
             {options.map((option) => (
               <Select.Item
                 key={option.value}
                 value={option.value}
+                disabled={option.disabled}
                 className={`select-item${mono ? " num" : ""}`}
               >
                 <Select.ItemText>{option.label}</Select.ItemText>
@@ -170,6 +178,19 @@ export function DropdownField({
     <div className={`field${inline ? " is-inline" : ""}`}>
       <span>{label}</span>
       <Dropdown ariaLabel={label} {...dropdown} />
+    </div>
+  );
+}
+
+/**
+ * Two or three controls sharing one caption, for a value with an hour part and
+ * a minute part. Two short lists are quicker to aim at than one long one.
+ */
+export function SplitField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="field">
+      <span>{label}</span>
+      <div className="split">{children}</div>
     </div>
   );
 }

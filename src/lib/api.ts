@@ -107,12 +107,8 @@ export function errorMessage(error: unknown): string {
 
 // --- duration helpers ------------------------------------------------------
 
-/** Allowed durations, 15 minutes to 12 hours — the dropdown's options. */
+/** The grid every duration and start time lands on, matching the schema. */
 export const DURATION_STEP_MINUTES = 15;
-export const DURATION_OPTIONS: number[] = Array.from(
-  { length: (12 * 60) / DURATION_STEP_MINUTES },
-  (_, index) => (index + 1) * DURATION_STEP_MINUTES,
-);
 
 /** `90` -> `"1h 30m"`, `60` -> `"1h"`, `45` -> `"45m"`. */
 export function formatDuration(minutes: number): string {
@@ -121,17 +117,6 @@ export function formatDuration(minutes: number): string {
   if (hours === 0) return `${remainder}m`;
   if (remainder === 0) return `${hours}h`;
   return `${hours}h ${remainder}m`;
-}
-
-/** Start times available on a given day, matching the schema's 15-minute grid. */
-export function startTimeOptions(): string[] {
-  const options: string[] = [];
-  for (let hour = 0; hour < 24; hour += 1) {
-    for (let minute = 0; minute < 60; minute += DURATION_STEP_MINUTES) {
-      options.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
-    }
-  }
-  return options;
 }
 
 // --- clients ---------------------------------------------------------------

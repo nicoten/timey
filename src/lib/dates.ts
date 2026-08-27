@@ -133,13 +133,3 @@ export function endTimeOfDay(startedAt: string, durationMinutes: number): string
   return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
 }
 
-/** Every 15-minute slot in a day, as `"HH:MM"`. */
-export function startTimeSlots(): string[] {
-  const slots: string[] = [];
-  for (let hour = 0; hour < 24; hour += 1) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      slots.push(`${pad(hour)}:${pad(minute)}`);
-    }
-  }
-  return slots;
-}

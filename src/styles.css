@@ -652,10 +652,14 @@ body {
 
 .select-content {
   z-index: 50;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   /* Popper exposes the trigger width, so the list lines up under it. */
   min-width: var(--radix-select-trigger-width);
-  max-height: 240px;
+  /* Popper also measures the room left on the flipped side; without this the
+     list keeps its full height and runs off the top of the window. */
+  max-height: min(240px, var(--radix-select-content-available-height));
   background: var(--card);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
@@ -684,6 +688,12 @@ body {
   background: var(--band);
 }
 
+/* Shown rather than hidden, so the rule that rules it out stays visible. */
+.select-item[data-disabled] {
+  color: var(--ink-3);
+  cursor: default;
+}
+
 .select-item[data-state="checked"] {
   font-weight: 600;
   color: var(--fill-edge);
@@ -691,6 +701,7 @@ body {
 
 .select-scroll {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   height: 18px;
@@ -722,6 +733,26 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+/* An hour control beside a minute one, splitting the caption's width. */
+.split {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.split .select-trigger {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 6px;
+}
+
+.split-sep {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink-3);
 }
 
 .form-actions {

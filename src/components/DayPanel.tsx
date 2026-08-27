@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  DURATION_OPTIONS,
+  DURATION_STEP_MINUTES,
   entryCreate,
   entryDelete,
   entryUpdate,
@@ -9,20 +9,14 @@ import {
   type Project,
   type Client,
 } from "../lib/api";
-import {
-  combineDateAndTime,
-  dayLabel,
-  endTimeOfDay,
-  startTimeSlots,
-  timeOfDay,
-} from "../lib/dates";
+import { combineDateAndTime, dayLabel, endTimeOfDay, timeOfDay } from "../lib/dates";
 import { earnedCents, formatMinutes, formatMoney, sumEarnedCents } from "../lib/money";
 import {
   Button,
   Dropdown,
-  DropdownField,
   Empty,
   ErrorNote,
+  SplitField,
   TextInput,
   type DropdownOption,
 } from "./ui";
@@ -30,14 +24,30 @@ import {
 const DEFAULT_START = "09:00";
 const DEFAULT_DURATION = 60;
 
-const START_OPTIONS: DropdownOption[] = startTimeSlots().map((slot) => ({
-  value: slot,
-  label: slot,
-}));
+/*
+ * Start and duration are each picked as an hour and a minute rather than from
+ * one long list of every combination. Both parts stay on the quarter-hour grid
+ * the backend validates; the start minutes are coarser still, at the half hour.
+ */
 
-const DURATION_CHOICES: DropdownOption[] = DURATION_OPTIONS.map((minutes) => ({
+const HOURS_OF_DAY: DropdownOption[] = Array.from({ length: 24 }, (_, hour) => {
+  const value = String(hour).padStart(2, "0");
+  return { value, label: value };
+});
+
+const START_MINUTES: DropdownOption[] = ["00", "30"].map((value) => ({ value, label: value }));
+
+/** Twelve hours is the longest entry the app offers, as it always has been. */
+const MAX_DURATION_HOURS = 12;
+
+const DURATION_HOURS: DropdownOption[] = Array.from(
+  { length: MAX_DURATION_HOURS + 1 },
+  (_, hours) => ({ value: String(hours), label: `${hours}h` }),
+);
+
+const DURATION_MINUTES: DropdownOption[] = [0, 15, 30, 45].map((minutes) => ({
   value: String(minutes),
-  label: formatMinutes(minutes),
+  label: `${minutes}m`,
 }));
 
 interface Props {
@@ -104,6 +114,61 @@ export function DayPanel({
       durationMinutes: DEFAULT_DURATION,
     });
   }, [date, suggestedStart, projects]);
+
+  const startHour = draft.startTime.slice(0, 2);
+  const startMinute = draft.startTime.slice(3, 5);
+  const durationHours = Math.floor(draft.durationMinutes / 60);
+  const durationMinutes = draft.durationMinutes % 60;
+
+  const setStart = (hour: string, minute: string) =>
+    setDraft({ ...draft, startTime: `${hour}:${minute}` });
+
+  const setDuration = (hours: number, minutes: number) =>
+    setDraft({ ...draft, durationMinutes: hours * 60 + minutes });
+
+  /*
+   * The half hour, plus the draft's own minute when it sits between: durations
+   * still step by 15, so a start suggested after a 45-minute entry lands on :45,
+   * as does any entry already saved there. Radix shows an empty trigger for a
+   * value it has no option for, and the time would vanish on save.
+   */
+  const startMinuteOptions: DropdownOption[] = useMemo(() => {
+    if (START_MINUTES.some((option) => option.value === startMinute)) return START_MINUTES;
+    return [...START_MINUTES, { value: startMinute, label: startMinute }].sort((a, b) =>
+      a.value.localeCompare(b.value),
+    );
+  }, [startMinute]);
+
+  /** Likewise for a longer entry than the app itself offers. */
+  const durationHourOptions: DropdownOption[] = useMemo(() => {
+    if (durationHours <= MAX_DURATION_HOURS) return DURATION_HOURS;
+    return [...DURATION_HOURS, { value: String(durationHours), label: `${durationHours}h` }];
+  }, [durationHours]);
+
+  /*
+   * A duration has to be positive and no longer than the ceiling, so the minutes
+   * that would break either rule are greyed rather than dropped — the constraint
+   * is easier to understand when you can see what it excludes.
+   */
+  const durationMinuteOptions: DropdownOption[] = useMemo(
+    () =>
+      DURATION_MINUTES.map((option) => ({
+        ...option,
+        disabled:
+          option.value === "0" ? durationHours === 0 : durationHours >= MAX_DURATION_HOURS,
+      })),
+    [durationHours],
+  );
+
+  /*
+   * Changing the hour never dead-ends on those same rules: it carries the
+   * minutes to the nearest value the new hour allows instead of refusing.
+   */
+  const changeDurationHours = (hours: number) => {
+    if (hours === 0) return setDuration(0, durationMinutes || DURATION_STEP_MINUTES);
+    if (hours >= MAX_DURATION_HOURS) return setDuration(hours, 0);
+    setDuration(hours, durationMinutes);
+  };
 
   const dayMinutes = dayEntries.reduce((sum, entry) => sum + entry.durationMinutes, 0);
   const dayCents = sumEarnedCents(dayEntries);
@@ -274,22 +339,41 @@ export function DayPanel({
             />
 
             <div className="field-pair">
-              <DropdownField
-                label="Start"
-                mono
-                value={draft.startTime}
-                onChange={(startTime) => setDraft({ ...draft, startTime })}
-                options={START_OPTIONS}
-              />
-              <DropdownField
-                label="Duration"
-                mono
-                value={String(draft.durationMinutes)}
-                onChange={(minutes) =>
-                  setDraft({ ...draft, durationMinutes: Number(minutes) })
-                }
-                options={DURATION_CHOICES}
-              />
+              <SplitField label="Start">
+                <Dropdown
+                  ariaLabel="Start hour"
+                  mono
+                  value={startHour}
+                  onChange={(hour) => setStart(hour, startMinute)}
+                  options={HOURS_OF_DAY}
+                />
+                <span className="split-sep" aria-hidden="true">
+                  :
+                </span>
+                <Dropdown
+                  ariaLabel="Start minute"
+                  mono
+                  value={startMinute}
+                  onChange={(minute) => setStart(startHour, minute)}
+                  options={startMinuteOptions}
+                />
+              </SplitField>
+              <SplitField label="Duration">
+                <Dropdown
+                  ariaLabel="Duration hours"
+                  mono
+                  value={String(durationHours)}
+                  onChange={(hours) => changeDurationHours(Number(hours))}
+                  options={durationHourOptions}
+                />
+                <Dropdown
+                  ariaLabel="Duration minutes"
+                  mono
+                  value={String(durationMinutes)}
+                  onChange={(minutes) => setDuration(durationHours, Number(minutes))}
+                  options={durationMinuteOptions}
+                />
+              </SplitField>
             </div>
 
             <ErrorNote error={error} />
