@@ -13,6 +13,10 @@ import { invoke } from "@tauri-apps/api/core";
 export interface Client {
   id: number;
   name: string;
+  /** Employer identification number, printed on invoices. */
+  ein: string | null;
+  /** One freeform block, newline-separated, reproduced verbatim on invoices. */
+  address: string | null;
   /** UTC instant; non-null means archived. */
   archivedAt: string | null;
   createdAt: string;
@@ -136,12 +140,30 @@ export function clientsList(includeArchived = false): Promise<Client[]> {
   return invoke("clients_list", { includeArchived });
 }
 
-export function clientCreate(name: string): Promise<Client> {
-  return invoke("client_create", { name });
+export function clientCreate(input: {
+  name: string;
+  ein?: string | null;
+  address?: string | null;
+}): Promise<Client> {
+  return invoke("client_create", {
+    name: input.name,
+    ein: input.ein ?? null,
+    address: input.address ?? null,
+  });
 }
 
-export function clientRename(id: number, name: string): Promise<Client> {
-  return invoke("client_rename", { id, name });
+export function clientUpdate(input: {
+  id: number;
+  name: string;
+  ein?: string | null;
+  address?: string | null;
+}): Promise<Client> {
+  return invoke("client_update", {
+    id: input.id,
+    name: input.name,
+    ein: input.ein ?? null,
+    address: input.address ?? null,
+  });
 }
 
 export function clientSetArchived(id: number, archived: boolean): Promise<Client> {
@@ -262,4 +284,89 @@ export function entryDelete(id: number): Promise<void> {
 export async function entriesDailyTotals(from: string, to: string): Promise<DailyTotal[]> {
   const rows = await invoke<[string, number][]>("entries_daily_totals", { from, to });
   return rows.map(([day, minutes]) => ({ day, minutes }));
+}
+
+// --- settings --------------------------------------------------------------
+
+/** Keys the Rust side knows about. */
+export const SETTING_INVOICE_FOLDER = "invoice_folder";
+export const SETTING_SENDER_NAME = "sender_name";
+
+export type Settings = Record<string, string>;
+
+export function settingsAll(): Promise<Settings> {
+  return invoke("settings_all");
+}
+
+/** An empty value removes the setting. */
+export function settingsSet(key: string, value: string): Promise<void> {
+  return invoke("settings_set", { key, value });
+}
+
+// --- invoicing -------------------------------------------------------------
+
+export interface InvoiceCandidate {
+  projectId: number;
+  code: string;
+  name: string;
+  minutes: number;
+  /** `null` means the project has no rate, so it cannot be billed. */
+  hourlyRateCents: number | null;
+}
+
+export interface InvoiceLine {
+  projectId: number;
+  description: string;
+  minutes: number;
+  rateCents: number;
+  amountCents: number;
+}
+
+export interface InvoiceDraft {
+  number: number;
+  issueDate: string;
+  client: Client;
+  senderName: string;
+  periodStart: string;
+  /** Exclusive, matching how entries are queried. */
+  periodEnd: string;
+  /** The last day actually billed, which is what the document shows. */
+  periodEndInclusive: string;
+  lines: InvoiceLine[];
+  totalCents: number;
+  fileName: string;
+}
+
+export interface IssuedInvoice {
+  id: number;
+  number: number;
+  filePath: string;
+}
+
+export function invoiceCandidates(
+  clientId: number,
+  from: string,
+  to: string,
+): Promise<InvoiceCandidate[]> {
+  return invoke("invoice_candidates", { clientId, from, to });
+}
+
+export function invoicePrepare(
+  clientId: number,
+  projectIds: number[],
+  from: string,
+  to: string,
+): Promise<InvoiceDraft> {
+  return invoke("invoice_prepare", { clientId, projectIds, from, to });
+}
+
+/** Writes the rendered PDF and records the invoice. */
+export function invoiceIssue(draft: InvoiceDraft, pdf: Uint8Array): Promise<IssuedInvoice> {
+  // Tauri deserializes a plain number array into Rust's Vec<u8>.
+  return invoke("invoice_issue", { draft, pdf: Array.from(pdf) });
+}
+
+/** `1050` -> `"17.50"`, the quantity column on an invoice. */
+export function hoursDecimal(minutes: number): string {
+  return (minutes / 60).toFixed(2);
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO settings (key, value) VALUES (?1, ?2)\n        ON CONFLICT (key) DO UPDATE\n        SET value = excluded.value,\n            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "f1b97b0d749794c5f859cba62981bdf3531c851375c3177b46904b7da8fab96f"
+}

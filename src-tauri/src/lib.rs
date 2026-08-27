@@ -135,6 +135,7 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
+                app.handle().plugin(tauri_plugin_dialog::init())?;
             }
 
             let path = app.path().app_data_dir()?.join(DATABASE_FILE);
@@ -174,7 +175,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::clients_list,
             commands::client_create,
-            commands::client_rename,
+            commands::client_update,
             commands::client_set_archived,
             commands::client_delete,
             commands::contacts_list,
@@ -191,6 +192,11 @@ pub fn run() {
             commands::entry_update,
             commands::entry_delete,
             commands::entries_daily_totals,
+            commands::settings_all,
+            commands::settings_set,
+            commands::invoice_candidates,
+            commands::invoice_prepare,
+            commands::invoice_issue,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

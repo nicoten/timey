@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n        SELECT id AS \"id!\", name, archived_at, created_at\n        FROM clients WHERE id = ?1\n        ",
+  "query": "\n        SELECT id AS \"id!\", name, ein, address, archived_at, created_at\n        FROM clients WHERE id = ?1\n        ",
   "describe": {
     "columns": [
       {
@@ -14,13 +14,23 @@
         "type_info": "Text"
       },
       {
-        "name": "archived_at",
+        "name": "ein",
         "ordinal": 2,
         "type_info": "Text"
       },
       {
-        "name": "created_at",
+        "name": "address",
         "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
         "type_info": "Text"
       }
     ],
@@ -31,8 +41,10 @@
       false,
       false,
       true,
+      true,
+      true,
       false
     ]
   },
-  "hash": "252d6638d8a307e1f94ae5376dad6485b5f2a79831c67239ccf1107545f19aab"
+  "hash": "d09e27837fa3ba76fdc6a107fe5bbd0ccef41cc751d73858a1c720c17d660a12"
 }

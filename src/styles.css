@@ -539,6 +539,75 @@ body {
   box-shadow: 0 0 0 2px rgb(var(--fill) / 0.3);
 }
 
+.text-area {
+  min-height: 58px;
+  font-family: var(--sans);
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.invoice-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 2px solid var(--rule);
+}
+
+/* --- checkbox rows (Radix Checkbox) -------------------------------------- */
+
+.check-row {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--rule-soft);
+  cursor: pointer;
+}
+
+.check-row.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.check-box {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  padding: 0;
+  color: transparent;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: inherit;
+}
+
+.check-box[data-state="checked"] {
+  color: #f7faf4;
+  background: var(--fill-edge);
+  border-color: var(--fill-edge);
+}
+
+.check-mark {
+  font-size: 10px;
+  line-height: 1;
+}
+
+.check-body {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+  font-size: 13px;
+}
+
 /* --- dropdown (Radix Select) ---------------------------------------------- */
 
 .select-trigger {

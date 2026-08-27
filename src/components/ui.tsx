@@ -1,5 +1,5 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
-import { Dialog, Label, Select, Tooltip } from "radix-ui";
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import { Checkbox, Dialog, Label, Select, Tooltip } from "radix-ui";
 
 import { errorMessage } from "../lib/api";
 
@@ -57,6 +57,38 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 /** Carries its own class so it styles correctly with or without a Field. */
 export function TextInput({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input type="text" className={`text-input ${className}`.trim()} {...props} />;
+}
+
+/** For an address, which is a block of lines rather than one value. */
+export function TextArea({ className = "", ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea className={`text-input text-area ${className}`.trim()} rows={3} {...props} />;
+}
+
+/** A Radix checkbox with its label, used for picking invoice lines. */
+export function CheckRow({
+  checked,
+  onChange,
+  disabled = false,
+  children,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <label className={`check-row${disabled ? " is-disabled" : ""}`}>
+      <Checkbox.Root
+        className="check-box"
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(next) => onChange(next === true)}
+      >
+        <Checkbox.Indicator className="check-mark">✓</Checkbox.Indicator>
+      </Checkbox.Root>
+      <span className="check-body">{children}</span>
+    </label>
+  );
 }
 
 export interface DropdownOption {
@@ -244,6 +276,19 @@ export function SettingsIcon() {
         fill="currentColor"
         fillRule="evenodd"
       />
+    </svg>
+  );
+}
+
+/** A document with ruled lines, for the invoice action. */
+export function InvoiceIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
+        <path d="M3.4 1.9h6.2l3 3v9.2H3.4z" strokeLinejoin="round" />
+        <path d="M9.4 2.1v3h3" strokeLinejoin="round" />
+        <path d="M5.7 8.2h4.6M5.7 10.8h3" />
+      </g>
     </svg>
   );
 }

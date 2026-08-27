@@ -1,11 +1,16 @@
 import { useEffect, useState } from "react";
 import { ToggleGroup } from "radix-ui";
 
+import { open } from "@tauri-apps/plugin-dialog";
+
 import {
+  SETTING_INVOICE_FOLDER,
+  SETTING_SENDER_NAME,
   clientCreate,
   clientDelete,
-  clientRename,
   clientSetArchived,
+  clientUpdate,
+  settingsSet,
   contactCreate,
   contactDelete,
   contactUpdate,
@@ -17,6 +22,7 @@ import {
   type Client,
   type Contact,
   type Project,
+  type Settings,
 } from "../lib/api";
 import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
 import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
@@ -28,6 +34,7 @@ import {
   ErrorNote,
   Field,
   Modal,
+  TextArea,
   TextInput,
   type DropdownOption,
 } from "./ui";
@@ -59,7 +66,9 @@ const THEME_LABELS: Record<ThemeChoice, string> = {
 interface Props {
   clients: Client[];
   projects: Project[];
+  settings: Settings;
   onChanged: () => void;
+  onSettingsChanged: () => void;
   onClose: () => void;
   updates: Updates;
   theme: ThemeChoice;
@@ -69,7 +78,9 @@ interface Props {
 export function SettingsView({
   clients,
   projects,
+  settings,
   onChanged,
+  onSettingsChanged,
   onClose,
   updates,
   theme,
@@ -86,9 +97,82 @@ export function SettingsView({
 
       <ClientSection clients={clients} onChanged={onChanged} />
       <ProjectSection clients={clients} projects={projects} onChanged={onChanged} />
+      <InvoicingSection settings={settings} onChanged={onSettingsChanged} />
       <AppearanceSection theme={theme} onThemeChange={onThemeChange} />
       <UpdateSection updates={updates} />
     </div>
+  );
+}
+
+// --- invoicing -------------------------------------------------------------
+
+function InvoicingSection({
+  settings,
+  onChanged,
+}: {
+  settings: Settings;
+  onChanged: () => void;
+}) {
+  const folder = settings[SETTING_INVOICE_FOLDER] ?? "";
+  const [senderName, setSenderName] = useState(settings[SETTING_SENDER_NAME] ?? "");
+  const [error, setError] = useState<unknown>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function save(key: string, value: string) {
+    setError(null);
+    try {
+      await settingsSet(key, value);
+      setSaved(true);
+      onChanged();
+    } catch (caught) {
+      setError(caught);
+    }
+  }
+
+  async function chooseFolder() {
+    setError(null);
+    try {
+      const picked = await open({ directory: true, multiple: false, title: "Invoice folder" });
+      // The picker returns null when dismissed, which is not an error.
+      if (typeof picked === "string") await save(SETTING_INVOICE_FOLDER, picked);
+    } catch (caught) {
+      setError(caught);
+    }
+  }
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Invoicing</h2>
+      </div>
+
+      <div className="form">
+        <Field label="Your name (appears after “From”)">
+          <TextInput
+            value={senderName}
+            placeholder="Nicolas Tejera"
+            onChange={(event) => {
+              setSenderName(event.currentTarget.value);
+              setSaved(false);
+            }}
+            onBlur={() => void save(SETTING_SENDER_NAME, senderName)}
+          />
+        </Field>
+
+        <div className="field">
+          <span>Save invoices to</span>
+          <div className="form-actions">
+            <span className="ledger-sub" style={{ wordBreak: "break-all" }}>
+              {folder === "" ? "No folder chosen" : folder}
+            </span>
+            <Button onClick={() => void chooseFolder()}>Choose…</Button>
+          </div>
+        </div>
+
+        {saved && <span className="ledger-sub">Saved.</span>}
+        <ErrorNote error={error} />
+      </div>
+    </section>
   );
 }
 
@@ -230,6 +314,8 @@ function ClientDialog({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(client?.name ?? "");
+  const [ein, setEin] = useState(client?.ein ?? "");
+  const [address, setAddress] = useState(client?.address ?? "");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -238,9 +324,9 @@ function ClientDialog({
     setError(null);
     try {
       if (client === null) {
-        await clientCreate(name);
+        await clientCreate({ name, ein, address });
       } else {
-        await clientRename(client.id, name);
+        await clientUpdate({ id: client.id, name, ein, address });
       }
       onSaved();
     } catch (caught) {
@@ -252,7 +338,7 @@ function ClientDialog({
 
   return (
     <Modal
-      title={client === null ? "New client" : "Rename client"}
+      title={client === null ? "New client" : "Edit client"}
       submitLabel={client === null ? "Add client" : "Save"}
       onSubmit={() => void submit()}
       onClose={onClose}
@@ -264,6 +350,22 @@ function ClientDialog({
           value={name}
           placeholder="Acme Industries"
           onChange={(event) => setName(event.currentTarget.value)}
+        />
+      </Field>
+      <Field label="EIN">
+        <TextInput
+          className="num"
+          value={ein}
+          placeholder="133448682"
+          onChange={(event) => setEin(event.currentTarget.value)}
+        />
+      </Field>
+      {/* Freeform: an invoice reproduces these lines exactly as typed. */}
+      <Field label="Address">
+        <TextArea
+          value={address}
+          placeholder={"390 Riverside Drive\nNew York, NY 10025"}
+          onChange={(event) => setAddress(event.currentTarget.value)}
         />
       </Field>
       <ErrorNote error={error} />
@@ -295,7 +397,7 @@ function ClientRow({
             {expanded ? "Hide contacts" : "Contacts"}
           </Button>
           <Button variant="quiet" onClick={onEdit}>
-            Rename
+            Edit
           </Button>
           <Button
             variant="quiet"

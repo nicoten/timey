@@ -16,7 +16,7 @@ where
     let client = sqlx::query_as!(
         Client,
         r#"
-        SELECT id AS "id!", name, archived_at, created_at
+        SELECT id AS "id!", name, ein, address, archived_at, created_at
         FROM clients WHERE id = ?1
         "#,
         id
@@ -31,7 +31,7 @@ pub async fn list(db: &Db, include_archived: bool) -> AppResult<Vec<Client>> {
     let clients = sqlx::query_as!(
         Client,
         r#"
-        SELECT id AS "id!", name, archived_at, created_at
+        SELECT id AS "id!", name, ein, address, archived_at, created_at
         FROM clients
         WHERE ?1 OR archived_at IS NULL
         ORDER BY lower(name)
@@ -50,16 +50,25 @@ pub async fn get(db: &Db, id: i64) -> AppResult<Client> {
         .ok_or(AppError::NotFound { entity: "Client", id })
 }
 
-pub async fn create(db: &Db, name: &str) -> AppResult<Client> {
+pub async fn create(
+    db: &Db,
+    name: &str,
+    ein: Option<String>,
+    address: Option<String>,
+) -> AppResult<Client> {
     let name = validate::non_empty("Client name", name)?;
+    let ein = validate::optional_text(ein);
+    let address = validate::optional_text(address);
 
     let client = sqlx::query_as!(
         Client,
         r#"
-        INSERT INTO clients (name) VALUES (?1)
-        RETURNING id AS "id!", name, archived_at, created_at
+        INSERT INTO clients (name, ein, address) VALUES (?1, ?2, ?3)
+        RETURNING id AS "id!", name, ein, address, archived_at, created_at
         "#,
-        name
+        name,
+        ein,
+        address
     )
     .fetch_one(db)
     .await?;
@@ -67,15 +76,29 @@ pub async fn create(db: &Db, name: &str) -> AppResult<Client> {
     Ok(client)
 }
 
-pub async fn rename(db: &Db, id: i64, name: &str) -> AppResult<Client> {
+pub async fn update(
+    db: &Db,
+    id: i64,
+    name: &str,
+    ein: Option<String>,
+    address: Option<String>,
+) -> AppResult<Client> {
     let name = validate::non_empty("Client name", name)?;
+    let ein = validate::optional_text(ein);
+    let address = validate::optional_text(address);
 
     let mut tx = db.begin().await?;
 
-    let affected = sqlx::query!("UPDATE clients SET name = ?2 WHERE id = ?1", id, name)
-        .execute(&mut *tx)
-        .await?
-        .rows_affected();
+    let affected = sqlx::query!(
+        "UPDATE clients SET name = ?2, ein = ?3, address = ?4 WHERE id = ?1",
+        id,
+        name,
+        ein,
+        address
+    )
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
 
     if affected == 0 {
         return Err(AppError::NotFound { entity: "Client", id });

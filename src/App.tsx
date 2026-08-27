@@ -8,18 +8,21 @@ import {
   entriesList,
   errorMessage,
   projectsList,
+  settingsAll,
   type Client,
   type EntryDetail,
   type Project,
+  type Settings,
 } from "./lib/api";
 import { currentMonth, monthEndExclusive, monthStart, type MonthCursor } from "./lib/dates";
 import { applyThemeChoice, loadThemeChoice, type ThemeChoice } from "./lib/theme";
 import { useUpdates } from "./lib/useUpdates";
 import { DayPanel } from "./components/DayPanel";
+import { InvoiceDialog } from "./components/InvoiceDialog";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { Button, SettingsIcon } from "./components/ui";
+import { Button, InvoiceIcon, SettingsIcon } from "./components/ui";
 import "./styles.css";
 
 type View = "month" | "settings";
@@ -32,6 +35,8 @@ export default function App() {
   const [entries, setEntries] = useState<EntryDetail[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [settings, setSettings] = useState<Settings>({});
+  const [invoicing, setInvoicing] = useState(false);
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -60,12 +65,14 @@ export default function App() {
   // the entry form offers only live projects.
   const loadCatalog = useCallback(async () => {
     try {
-      const [loadedClients, loadedProjects] = await Promise.all([
+      const [loadedClients, loadedProjects, loadedSettings] = await Promise.all([
         clientsList(true),
         projectsList(null, true),
+        settingsAll(),
       ]);
       setClients(loadedClients);
       setProjects(loadedProjects);
+      setSettings(loadedSettings);
       setLoadError(null);
     } catch (caught) {
       setLoadError(errorMessage(caught));
@@ -135,6 +142,14 @@ export default function App() {
           <span className="titlebar-actions">
             <Button
               variant="quiet"
+              onClick={() => setInvoicing(true)}
+              aria-label="New invoice"
+              title="New invoice"
+            >
+              <InvoiceIcon />
+            </Button>
+            <Button
+              variant="quiet"
               onClick={() => setView(view === "settings" ? "month" : "settings")}
               aria-label={view === "settings" ? "Back to calendar" : "Settings"}
               title={view === "settings" ? "Back to calendar" : "Settings"}
@@ -171,10 +186,12 @@ export default function App() {
               <SettingsView
                 clients={clients}
                 projects={projects}
+                settings={settings}
                 onChanged={() => {
                   void loadCatalog();
                   void loadMonth(cursor);
                 }}
+                onSettingsChanged={() => void loadCatalog()}
                 onClose={() => setView("month")}
                 updates={updates}
                 theme={theme}
@@ -198,6 +215,18 @@ export default function App() {
             />
           )}
         </div>
+
+        {invoicing && (
+          <InvoiceDialog
+            clients={clients}
+            settings={settings}
+            onClose={() => setInvoicing(false)}
+            onOpenSettings={() => {
+              setInvoicing(false);
+              setView("settings");
+            }}
+          />
+        )}
       </div>
     </Tooltip.Provider>
   );

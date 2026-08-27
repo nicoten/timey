@@ -123,6 +123,14 @@ pub fn date_bound(field: &str, value: &str) -> AppResult<String> {
     started_at(&trimmed)
 }
 
+/// Trims optional free text, turning blank into absent so the column stays NULL
+/// rather than holding an empty string.
+pub fn optional_text(value: Option<String>) -> Option<String> {
+    value
+        .map(|raw| raw.trim().to_string())
+        .filter(|trimmed| !trimmed.is_empty())
+}
+
 /// `#rgb` or `#rrggbb`, or nothing at all.
 pub fn optional_color(value: Option<String>) -> AppResult<Option<String>> {
     let Some(raw) = value else { return Ok(None) };
@@ -148,7 +156,7 @@ pub fn optional_rate_cents(value: Option<i64>) -> AppResult<Option<i64>> {
     }
 }
 
-fn days_in_month(year: i64, month: i64) -> i64 {
+pub fn days_in_month(year: i64, month: i64) -> i64 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
@@ -156,6 +164,28 @@ fn days_in_month(year: i64, month: i64) -> i64 {
         2 => 28,
         _ => 0,
     }
+}
+
+/// The day before `date`, both as `YYYY-MM-DD`.
+///
+/// Invoices are queried with an exclusive end but printed with an inclusive one.
+pub fn previous_day(date: &str) -> AppResult<String> {
+    let bounded = date_bound("date", date)?;
+    let (year, month, day) = (
+        bounded[0..4].parse::<i64>().unwrap_or(0),
+        bounded[5..7].parse::<i64>().unwrap_or(0),
+        bounded[8..10].parse::<i64>().unwrap_or(0),
+    );
+
+    let (year, month, day) = if day > 1 {
+        (year, month, day - 1)
+    } else if month > 1 {
+        (year, month - 1, days_in_month(year, month - 1))
+    } else {
+        (year - 1, 12, 31)
+    };
+
+    Ok(format!("{year:04}-{month:02}-{day:02}"))
 }
 
 fn is_leap_year(year: i64) -> bool {

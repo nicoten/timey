@@ -4,11 +4,15 @@
 //! rules live in `db` and `validate`, so the same behaviour is reachable from
 //! tests without a running app.
 
+use std::collections::HashMap;
+
 use tauri::State;
 
 use crate::db::{self, Db};
 use crate::error::AppResult;
-use crate::model::{Client, Contact, Entry, EntryDetail, Project};
+use crate::model::{
+    Client, Contact, Entry, EntryDetail, InvoiceCandidate, InvoiceDraft, IssuedInvoice, Project,
+};
 
 #[tauri::command]
 pub async fn clients_list(db: State<'_, Db>, include_archived: bool) -> AppResult<Vec<Client>> {
@@ -16,13 +20,24 @@ pub async fn clients_list(db: State<'_, Db>, include_archived: bool) -> AppResul
 }
 
 #[tauri::command]
-pub async fn client_create(db: State<'_, Db>, name: String) -> AppResult<Client> {
-    db::clients::create(&db, &name).await
+pub async fn client_create(
+    db: State<'_, Db>,
+    name: String,
+    ein: Option<String>,
+    address: Option<String>,
+) -> AppResult<Client> {
+    db::clients::create(&db, &name, ein, address).await
 }
 
 #[tauri::command]
-pub async fn client_rename(db: State<'_, Db>, id: i64, name: String) -> AppResult<Client> {
-    db::clients::rename(&db, id, &name).await
+pub async fn client_update(
+    db: State<'_, Db>,
+    id: i64,
+    name: String,
+    ein: Option<String>,
+    address: Option<String>,
+) -> AppResult<Client> {
+    db::clients::update(&db, id, &name, ein, address).await
 }
 
 #[tauri::command]
@@ -158,4 +173,52 @@ pub async fn entries_daily_totals(
     to: String,
 ) -> AppResult<Vec<(String, i64)>> {
     db::entries::daily_totals(&db, &from, &to).await
+}
+
+// --- settings --------------------------------------------------------------
+
+#[tauri::command]
+pub async fn settings_all(db: State<'_, Db>) -> AppResult<HashMap<String, String>> {
+    db::settings::all(&db).await
+}
+
+/// An empty value removes the setting.
+#[tauri::command]
+pub async fn settings_set(db: State<'_, Db>, key: String, value: String) -> AppResult<()> {
+    db::settings::set(&db, &key, &value).await
+}
+
+// --- invoicing -------------------------------------------------------------
+
+/// Projects of this client with time logged in `[from, to)`.
+#[tauri::command]
+pub async fn invoice_candidates(
+    db: State<'_, Db>,
+    client_id: i64,
+    from: String,
+    to: String,
+) -> AppResult<Vec<InvoiceCandidate>> {
+    db::invoices::candidates(&db, client_id, &from, &to).await
+}
+
+/// Everything needed to render the document, including the number it will take.
+#[tauri::command]
+pub async fn invoice_prepare(
+    db: State<'_, Db>,
+    client_id: i64,
+    project_ids: Vec<i64>,
+    from: String,
+    to: String,
+) -> AppResult<InvoiceDraft> {
+    db::invoices::prepare(&db, client_id, &project_ids, &from, &to).await
+}
+
+/// Records the invoice and writes the rendered PDF to the configured folder.
+#[tauri::command]
+pub async fn invoice_issue(
+    db: State<'_, Db>,
+    draft: InvoiceDraft,
+    pdf: Vec<u8>,
+) -> AppResult<IssuedInvoice> {
+    db::invoices::issue(&db, &draft, &pdf).await
 }

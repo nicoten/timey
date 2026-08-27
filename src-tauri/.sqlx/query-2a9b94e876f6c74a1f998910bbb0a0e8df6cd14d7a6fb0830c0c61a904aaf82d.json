@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT CAST(coalesce(max(number), 0) AS INTEGER) AS \"highest!: i64\" FROM invoices",
+  "describe": {
+    "columns": [
+      {
+        "name": "highest!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2a9b94e876f6c74a1f998910bbb0a0e8df6cd14d7a6fb0830c0c61a904aaf82d"
+}

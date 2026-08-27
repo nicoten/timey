@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO clients (name, ein, address) VALUES (?1, ?2, ?3)\n        RETURNING id AS \"id!\", name, ein, address, archived_at, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "ein",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "address",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "c8d49e5249f6042cdaf78a2734276415b3fbe2b42e3d29b1d1a12d93734e29fa"
+}

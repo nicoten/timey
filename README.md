@@ -44,6 +44,30 @@ pnpm test:rust
 Runs against a real in-memory SQLite database with the production migrations
 applied, so the schema's constraints are exercised rather than mocked.
 
+## Invoicing
+
+Settings needs two things before an invoice can be issued: **your name**, which
+appears after "From", and a **folder** to write PDFs into. Clients carry an EIN
+and an address, both printed on the document.
+
+The invoice action in the popover header asks for a client, a month, and which
+projects to include — everything with a rate is preselected. Projects without an
+hourly rate are listed but cannot be picked: their time is real, it just cannot
+be billed.
+
+One line per project, quantity in decimal hours, and an amount computed from the
+project's whole minute total so that `quantity × unit price` equals the amount
+printed beside it. Invoice numbers are a running sequence, unique in the
+database, so two invoices can never share one.
+
+Issued invoices are stored line by line rather than recomputed on demand. A rate
+change must not rewrite a document that has already been sent, and deleting a
+client that has been invoiced fails for the same reason.
+
+The PDF is drawn with jsPDF in the frontend and written by Rust. jsPDF ships the
+Helvetica metrics needed to right-align the figure columns, which is the one
+thing a hand-rolled writer cannot do without reproducing a font's width tables.
+
 ## Data model
 
 ```
@@ -58,6 +82,10 @@ clients ──< contacts
 - **projects** — a `code` (required, unique across all live projects, case-insensitive)
   plus a name unique within the client. `hourly_rate_cents` is integer cents, never a float.
 - **entries** — `project_id`, `name`, `started_at`, `duration_minutes`.
+- **invoices / invoice_lines** — one row per issued document, with its lines frozen
+  at the moment of issue.
+- **settings** — key/value, for the invoice folder and sender name. These shape
+  files on disk, so they belong beside the data rather than in browser storage.
 
 Deleting a client with projects, or a project with entries, fails by design
 (`ON DELETE RESTRICT`) — archive instead, so logged hours are never silently lost.

@@ -4,7 +4,9 @@
 pub mod clients;
 pub mod contacts;
 pub mod entries;
+pub mod invoices;
 pub mod projects;
+pub mod settings;
 
 use std::path::Path;
 use std::str::FromStr;

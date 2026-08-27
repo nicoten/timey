@@ -13,7 +13,7 @@ async fn fresh_db() -> Db {
 
 /// A client with one project, the usual starting point.
 async fn client_with_project(db: &Db) -> (i64, i64) {
-    let client = db::clients::create(db, "Acme").await.expect("client");
+    let client = db::clients::create(db, "Acme", None, None).await.expect("client");
     let project = db::projects::create(db, client.id, "ACME-001", "Website", None, None)
         .await
         .expect("project");
@@ -39,19 +39,19 @@ async fn migrations_are_idempotent() {
 #[tokio::test]
 async fn client_names_are_unique_case_insensitively() {
     let db = fresh_db().await;
-    db::clients::create(&db, "Acme").await.unwrap();
+    db::clients::create(&db, "Acme", None, None).await.unwrap();
 
-    let error = db::clients::create(&db, "ACME").await.unwrap_err();
+    let error = db::clients::create(&db, "ACME", None, None).await.unwrap_err();
     assert_kind(error, "conflict");
 }
 
 #[tokio::test]
 async fn archiving_a_client_frees_its_name() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     db::clients::set_archived(&db, client.id, true).await.unwrap();
-    let reused = db::clients::create(&db, "Acme").await.expect("name should be free");
+    let reused = db::clients::create(&db, "Acme", None, None).await.expect("name should be free");
 
     assert_ne!(reused.id, client.id);
 }
@@ -59,8 +59,8 @@ async fn archiving_a_client_frees_its_name() {
 #[tokio::test]
 async fn listing_clients_hides_archived_unless_asked() {
     let db = fresh_db().await;
-    let kept = db::clients::create(&db, "Kept").await.unwrap();
-    let gone = db::clients::create(&db, "Gone").await.unwrap();
+    let kept = db::clients::create(&db, "Kept", None, None).await.unwrap();
+    let gone = db::clients::create(&db, "Gone", None, None).await.unwrap();
     db::clients::set_archived(&db, gone.id, true).await.unwrap();
 
     let visible = db::clients::list(&db, false).await.unwrap();
@@ -73,7 +73,7 @@ async fn listing_clients_hides_archived_unless_asked() {
 #[tokio::test]
 async fn unarchiving_clears_the_timestamp() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     let archived = db::clients::set_archived(&db, client.id, true).await.unwrap();
     assert!(archived.archived_at.is_some());
@@ -85,13 +85,13 @@ async fn unarchiving_clears_the_timestamp() {
 #[tokio::test]
 async fn blank_client_names_are_rejected() {
     let db = fresh_db().await;
-    assert_kind(db::clients::create(&db, "   ").await.unwrap_err(), "validation");
+    assert_kind(db::clients::create(&db, "   ", None, None).await.unwrap_err(), "validation");
 }
 
 #[tokio::test]
 async fn operating_on_a_missing_client_reports_not_found() {
     let db = fresh_db().await;
-    assert_kind(db::clients::rename(&db, 404, "Ghost").await.unwrap_err(), "notFound");
+    assert_kind(db::clients::update(&db, 404, "Ghost", None, None).await.unwrap_err(), "notFound");
     assert_kind(db::clients::delete(&db, 404).await.unwrap_err(), "notFound");
     assert_kind(db::clients::get(&db, 404).await.unwrap_err(), "notFound");
 }
@@ -101,7 +101,7 @@ async fn operating_on_a_missing_client_reports_not_found() {
 #[tokio::test]
 async fn a_client_can_hold_several_contacts() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     db::contacts::create(&db, client.id, "Ann", "ann@acme.com").await.unwrap();
     db::contacts::create(&db, client.id, "Bob", "bob@acme.com").await.unwrap();
@@ -115,8 +115,8 @@ async fn a_client_can_hold_several_contacts() {
 #[tokio::test]
 async fn the_same_email_may_serve_two_clients_but_not_one_twice() {
     let db = fresh_db().await;
-    let acme = db::clients::create(&db, "Acme").await.unwrap();
-    let globex = db::clients::create(&db, "Globex").await.unwrap();
+    let acme = db::clients::create(&db, "Acme", None, None).await.unwrap();
+    let globex = db::clients::create(&db, "Globex", None, None).await.unwrap();
 
     db::contacts::create(&db, acme.id, "Ann", "ann@example.com").await.unwrap();
     db::contacts::create(&db, globex.id, "Ann", "ann@example.com")
@@ -132,7 +132,7 @@ async fn the_same_email_may_serve_two_clients_but_not_one_twice() {
 #[tokio::test]
 async fn contacts_reject_malformed_emails() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     for bad in ["", "ann", "ann@", "ann@acme", "a b@c.com"] {
         let error = db::contacts::create(&db, client.id, "Ann", bad).await.unwrap_err();
@@ -151,7 +151,7 @@ async fn a_contact_needs_an_existing_client() {
 #[tokio::test]
 async fn deleting_a_client_takes_its_contacts_with_it() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     db::contacts::create(&db, client.id, "Ann", "ann@acme.com").await.unwrap();
 
     db::clients::delete(&db, client.id).await.expect("no projects, so deletable");
@@ -162,7 +162,7 @@ async fn deleting_a_client_takes_its_contacts_with_it() {
 #[tokio::test]
 async fn a_contact_email_can_be_corrected() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     let contact = db::contacts::create(&db, client.id, "Ann", "typo@acme.com").await.unwrap();
 
     let fixed = db::contacts::update(&db, contact.id, "Ann Smith", "ann@acme.com").await.unwrap();
@@ -177,8 +177,8 @@ async fn a_contact_email_can_be_corrected() {
 #[tokio::test]
 async fn project_codes_are_globally_unique_case_insensitively() {
     let db = fresh_db().await;
-    let acme = db::clients::create(&db, "Acme").await.unwrap();
-    let globex = db::clients::create(&db, "Globex").await.unwrap();
+    let acme = db::clients::create(&db, "Acme", None, None).await.unwrap();
+    let globex = db::clients::create(&db, "Globex", None, None).await.unwrap();
 
     db::projects::create(&db, acme.id, "P-001", "Website", None, None).await.unwrap();
 
@@ -203,7 +203,7 @@ async fn archiving_a_project_frees_its_code() {
 #[tokio::test]
 async fn projects_require_a_code_and_a_name() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     assert_kind(
         db::projects::create(&db, client.id, "  ", "Website", None, None).await.unwrap_err(),
@@ -218,7 +218,7 @@ async fn projects_require_a_code_and_a_name() {
 #[tokio::test]
 async fn project_colors_must_be_hex_and_rates_non_negative() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     let ok = db::projects::create(&db, client.id, "C-1", "P", Some("#AABBCC".into()), Some(15_000))
         .await
@@ -239,8 +239,8 @@ async fn project_colors_must_be_hex_and_rates_non_negative() {
 #[tokio::test]
 async fn projects_can_be_filtered_by_client() {
     let db = fresh_db().await;
-    let acme = db::clients::create(&db, "Acme").await.unwrap();
-    let globex = db::clients::create(&db, "Globex").await.unwrap();
+    let acme = db::clients::create(&db, "Acme", None, None).await.unwrap();
+    let globex = db::clients::create(&db, "Globex", None, None).await.unwrap();
     db::projects::create(&db, acme.id, "A-1", "One", None, None).await.unwrap();
     db::projects::create(&db, globex.id, "G-1", "Two", None, None).await.unwrap();
 
@@ -346,7 +346,7 @@ async fn listing_entries_joins_project_and_client_detail() {
 #[tokio::test]
 async fn listing_entries_carries_the_projects_rate_for_earnings() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     let project = db::projects::create(&db, client.id, "ACME-001", "Website", None, Some(15_000))
         .await
         .unwrap();
@@ -494,9 +494,9 @@ async fn daily_totals_reject_a_malformed_bound() {
 #[tokio::test]
 async fn conflicts_carry_a_message_worth_showing_a_person() {
     let db = fresh_db().await;
-    db::clients::create(&db, "Acme").await.unwrap();
+    db::clients::create(&db, "Acme", None, None).await.unwrap();
 
-    let error = db::clients::create(&db, "Acme").await.unwrap_err();
+    let error = db::clients::create(&db, "Acme", None, None).await.unwrap_err();
     let message = error.to_string();
 
     assert!(
@@ -516,7 +516,7 @@ async fn conflicts_carry_a_message_worth_showing_a_person() {
 #[tokio::test]
 async fn a_new_row_reports_its_nullable_fields_as_absent() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     assert_eq!(client.archived_at, None);
 
     let project = db::projects::create(&db, client.id, "P-1", "Site", None, None)
@@ -530,9 +530,9 @@ async fn a_new_row_reports_its_nullable_fields_as_absent() {
 #[tokio::test]
 async fn renaming_a_live_client_does_not_invent_an_archive_timestamp() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
-    let renamed = db::clients::rename(&db, client.id, "Acme Ltd").await.unwrap();
+    let renamed = db::clients::update(&db, client.id, "Acme Ltd", None, None).await.unwrap();
 
     assert_eq!(renamed.name, "Acme Ltd");
     assert_eq!(renamed.archived_at, None, "a live client must have no archive timestamp");
@@ -541,10 +541,10 @@ async fn renaming_a_live_client_does_not_invent_an_archive_timestamp() {
 #[tokio::test]
 async fn renaming_an_archived_client_preserves_its_timestamp() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     let archived = db::clients::set_archived(&db, client.id, true).await.unwrap();
 
-    let renamed = db::clients::rename(&db, client.id, "Acme Ltd").await.unwrap();
+    let renamed = db::clients::update(&db, client.id, "Acme Ltd", None, None).await.unwrap();
 
     assert_eq!(renamed.archived_at, archived.archived_at);
 }
@@ -552,7 +552,7 @@ async fn renaming_an_archived_client_preserves_its_timestamp() {
 #[tokio::test]
 async fn clearing_a_projects_optional_fields_reads_back_as_absent() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     let project = db::projects::create(
         &db,
         client.id,
@@ -576,7 +576,7 @@ async fn clearing_a_projects_optional_fields_reads_back_as_absent() {
 #[tokio::test]
 async fn what_an_update_returns_matches_what_was_stored() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
 
     db::clients::set_archived(&db, client.id, true).await.unwrap();
     let returned = db::clients::set_archived(&db, client.id, false).await.unwrap();
@@ -589,11 +589,11 @@ async fn what_an_update_returns_matches_what_was_stored() {
 #[tokio::test]
 async fn a_failed_update_leaves_the_row_untouched() {
     let db = fresh_db().await;
-    let acme = db::clients::create(&db, "Acme").await.unwrap();
-    let globex = db::clients::create(&db, "Globex").await.unwrap();
+    let acme = db::clients::create(&db, "Acme", None, None).await.unwrap();
+    let globex = db::clients::create(&db, "Globex", None, None).await.unwrap();
 
     // Renaming Globex onto a taken name must fail and roll back.
-    let error = db::clients::rename(&db, globex.id, "Acme").await.unwrap_err();
+    let error = db::clients::update(&db, globex.id, "Acme", None, None).await.unwrap_err();
     assert_kind(error, "conflict");
 
     assert_eq!(db::clients::get(&db, globex.id).await.unwrap().name, "Globex");
@@ -663,7 +663,7 @@ async fn data_survives_closing_and_reopening_the_database() {
     let path = root.join("timey.db");
 
     let db = db::connect(&path).await.expect("first open");
-    let client = db::clients::create(&db, "Acme").await.unwrap();
+    let client = db::clients::create(&db, "Acme", None, None).await.unwrap();
     let project = db::projects::create(&db, client.id, "ACME-001", "Website", None, None)
         .await
         .unwrap();
@@ -685,4 +685,289 @@ async fn data_survives_closing_and_reopening_the_database() {
 
     reopened.close().await;
     std::fs::remove_dir_all(&root).ok();
+}
+
+// --- invoicing -------------------------------------------------------------
+
+use timey_lib::db::settings;
+
+/// A client with a rated project and time logged in August 2026.
+async fn billable_setup(db: &Db) -> (i64, i64) {
+    let client = db::clients::create(db, "InData", Some("133448682".into()), Some("390 Riverside Drive\nNew York, NY 10025".into()))
+        .await
+        .unwrap();
+    let project = db::projects::create(db, client.id, "XQ1", "XQ", None, Some(15_500))
+        .await
+        .unwrap();
+    // 17.5 hours, the figure from the reference invoice.
+    db::entries::create(db, project.id, "Work", "2026-08-03T09:00", 480).await.unwrap();
+    db::entries::create(db, project.id, "Work", "2026-08-04T09:00", 480).await.unwrap();
+    db::entries::create(db, project.id, "Work", "2026-08-05T09:00", 90).await.unwrap();
+
+    settings::set(db, settings::SENDER_NAME, "Nicolas Tejera").await.unwrap();
+    (client.id, project.id)
+}
+
+#[tokio::test]
+async fn settings_round_trip_and_blank_removes() {
+    let db = fresh_db().await;
+
+    settings::set(&db, "sender_name", "  Nicolas Tejera  ").await.unwrap();
+    assert_eq!(
+        settings::get(&db, "sender_name").await.unwrap().as_deref(),
+        Some("Nicolas Tejera"),
+        "stored values are trimmed"
+    );
+
+    // Setting the same key again replaces rather than failing on the primary key.
+    settings::set(&db, "sender_name", "Someone Else").await.unwrap();
+    assert_eq!(
+        settings::get(&db, "sender_name").await.unwrap().as_deref(),
+        Some("Someone Else")
+    );
+
+    settings::set(&db, "sender_name", "   ").await.unwrap();
+    assert_eq!(settings::get(&db, "sender_name").await.unwrap(), None, "blank clears the key");
+}
+
+#[tokio::test]
+async fn clients_carry_billing_details() {
+    let db = fresh_db().await;
+    let client = db::clients::create(&db, "InData", Some("133448682".into()), Some("390 Riverside Drive".into()))
+        .await
+        .unwrap();
+
+    assert_eq!(client.ein.as_deref(), Some("133448682"));
+    assert_eq!(client.address.as_deref(), Some("390 Riverside Drive"));
+
+    // Blank fields are stored as absent, not as empty strings.
+    let cleared = db::clients::update(&db, client.id, "InData", Some("  ".into()), None)
+        .await
+        .unwrap();
+    assert_eq!(cleared.ein, None);
+    assert_eq!(cleared.address, None);
+
+    // And they survive a reread.
+    assert_eq!(db::clients::get(&db, client.id).await.unwrap().ein, None);
+}
+
+#[tokio::test]
+async fn candidates_report_billable_time_for_the_period() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+
+    let found = db::invoices::candidates(&db, client_id, "2026-08-01", "2026-09-01").await.unwrap();
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].project_id, project_id);
+    assert_eq!(found[0].minutes, 17 * 60 + 30);
+    assert_eq!(found[0].hourly_rate_cents, Some(15_500));
+
+    // A month with nothing logged offers nothing.
+    assert!(db::invoices::candidates(&db, client_id, "2026-07-01", "2026-08-01")
+        .await
+        .unwrap()
+        .is_empty());
+}
+
+#[tokio::test]
+async fn candidates_include_unrated_projects_so_the_picker_can_explain() {
+    let db = fresh_db().await;
+    let (client_id, _) = billable_setup(&db).await;
+    let unrated = db::projects::create(&db, client_id, "NR1", "No rate", None, None).await.unwrap();
+    db::entries::create(&db, unrated.id, "Work", "2026-08-06T09:00", 60).await.unwrap();
+
+    let found = db::invoices::candidates(&db, client_id, "2026-08-01", "2026-09-01").await.unwrap();
+    let no_rate = found.iter().find(|c| c.project_id == unrated.id).unwrap();
+
+    assert_eq!(no_rate.hourly_rate_cents, None, "tracked time is not hidden just because it cannot be billed");
+}
+
+#[tokio::test]
+async fn prepare_builds_the_document_from_the_reference_invoice() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    settings::set(&db, settings::INVOICE_FOLDER, "/tmp/timey-invoices").await.unwrap();
+
+    let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap();
+
+    assert_eq!(draft.number, 1, "the first invoice takes number 1");
+    assert_eq!(draft.sender_name, "Nicolas Tejera");
+    assert_eq!(draft.client.ein.as_deref(), Some("133448682"));
+    assert_eq!(draft.period_end_inclusive, "2026-08-31", "the document shows the last day billed");
+    assert_eq!(draft.lines.len(), 1);
+    assert_eq!(draft.lines[0].description, "[XQ1] XQ (08/01/2026 - 08/31/2026)");
+    assert_eq!(draft.lines[0].minutes, 1050);
+    assert_eq!(draft.lines[0].rate_cents, 15_500);
+    assert_eq!(draft.lines[0].amount_cents, 271_250);
+    assert_eq!(draft.total_cents, 271_250);
+    assert_eq!(draft.file_name, "invoice-0001-indata-2026-08.pdf");
+}
+
+#[tokio::test]
+async fn prepare_refuses_without_the_settings_it_needs() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+
+    // Sender name is set by the fixture; the folder is not.
+    let error = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("invoice folder"), "{error}");
+    assert_kind(error, "validation");
+}
+
+#[tokio::test]
+async fn prepare_refuses_an_empty_selection_or_an_unrated_project() {
+    let db = fresh_db().await;
+    let (client_id, _) = billable_setup(&db).await;
+    settings::set(&db, settings::INVOICE_FOLDER, "/tmp/timey-invoices").await.unwrap();
+
+    assert_kind(
+        db::invoices::prepare(&db, client_id, &[], "2026-08-01", "2026-09-01").await.unwrap_err(),
+        "validation",
+    );
+
+    let unrated = db::projects::create(&db, client_id, "NR1", "No rate", None, None).await.unwrap();
+    db::entries::create(&db, unrated.id, "Work", "2026-08-06T09:00", 60).await.unwrap();
+    let error = db::invoices::prepare(&db, client_id, &[unrated.id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("no hourly rate"), "{error}");
+}
+
+#[tokio::test]
+async fn issuing_writes_the_file_and_records_the_lines() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    let folder = scratch_dir("invoices");
+    let _ = std::fs::remove_dir_all(&folder);
+    settings::set(&db, settings::INVOICE_FOLDER, folder.to_str().unwrap()).await.unwrap();
+
+    let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap();
+    let issued = db::invoices::issue(&db, &draft, b"%PDF-1.4 pretend").await.unwrap();
+
+    assert_eq!(issued.number, 1);
+    let written = std::path::Path::new(&issued.file_path);
+    assert!(written.exists(), "the PDF should be on disk at {}", issued.file_path);
+    assert_eq!(std::fs::read(written).unwrap(), b"%PDF-1.4 pretend");
+
+    let lines: i64 = sqlx::query_scalar("SELECT count(*) FROM invoice_lines WHERE invoice_id = ?")
+        .bind(issued.id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(lines, 1, "the lines are stored, not recomputed later");
+
+    std::fs::remove_dir_all(&folder).ok();
+}
+
+#[tokio::test]
+async fn the_number_sequence_runs_forward() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    let folder = scratch_dir("sequence");
+    let _ = std::fs::remove_dir_all(&folder);
+    settings::set(&db, settings::INVOICE_FOLDER, folder.to_str().unwrap()).await.unwrap();
+
+    assert_eq!(db::invoices::next_number(&db).await.unwrap(), 1);
+
+    for expected in 1..=3 {
+        let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+            .await
+            .unwrap();
+        assert_eq!(draft.number, expected);
+        db::invoices::issue(&db, &draft, b"%PDF").await.unwrap();
+    }
+
+    assert_eq!(db::invoices::next_number(&db).await.unwrap(), 4);
+    std::fs::remove_dir_all(&folder).ok();
+}
+
+#[tokio::test]
+async fn reissuing_a_taken_number_is_refused_and_writes_nothing() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    let folder = scratch_dir("collision");
+    let _ = std::fs::remove_dir_all(&folder);
+    settings::set(&db, settings::INVOICE_FOLDER, folder.to_str().unwrap()).await.unwrap();
+
+    let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap();
+    db::invoices::issue(&db, &draft, b"%PDF").await.unwrap();
+
+    // The same draft again still carries number 1, which is now taken.
+    let error = db::invoices::issue(&db, &draft, b"%PDF second").await.unwrap_err();
+    assert_kind(error, "conflict");
+
+    let invoices: i64 = sqlx::query_scalar("SELECT count(*) FROM invoices")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(invoices, 1, "the failed attempt left no record");
+
+    std::fs::remove_dir_all(&folder).ok();
+}
+
+#[tokio::test]
+async fn an_empty_render_is_refused() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    settings::set(&db, settings::INVOICE_FOLDER, "/tmp/timey-empty").await.unwrap();
+
+    let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap();
+    assert_kind(db::invoices::issue(&db, &draft, b"").await.unwrap_err(), "validation");
+}
+
+#[tokio::test]
+async fn a_client_with_invoices_cannot_be_deleted() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    let folder = scratch_dir("restrict");
+    let _ = std::fs::remove_dir_all(&folder);
+    settings::set(&db, settings::INVOICE_FOLDER, folder.to_str().unwrap()).await.unwrap();
+
+    let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap();
+    db::invoices::issue(&db, &draft, b"%PDF").await.unwrap();
+
+    // Clear the entries and the project, so the invoice is the only thing left
+    // holding the client. Without this the test would pass on the project's own
+    // RESTRICT and prove nothing about invoices.
+    sqlx::query("DELETE FROM entries").execute(&db).await.unwrap();
+    db::projects::delete(&db, project_id).await.unwrap();
+
+    let error = db::clients::delete(&db, client_id).await.unwrap_err();
+    assert_kind(error, "conflict");
+
+    // And the invoice survived the project going away.
+    let orphaned: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM invoice_lines WHERE project_id IS NULL",
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(orphaned, 1, "the line detaches from the project rather than vanishing");
+
+    std::fs::remove_dir_all(&folder).ok();
+}
+
+#[tokio::test]
+async fn previous_day_crosses_months_and_years() {
+    use timey_lib::validate::previous_day;
+
+    assert_eq!(previous_day("2026-09-01").unwrap(), "2026-08-31");
+    assert_eq!(previous_day("2026-03-01").unwrap(), "2026-02-28");
+    assert_eq!(previous_day("2028-03-01").unwrap(), "2028-02-29", "2028 is a leap year");
+    assert_eq!(previous_day("2026-01-01").unwrap(), "2025-12-31");
+    assert_eq!(previous_day("2026-08-15").unwrap(), "2026-08-14");
+    assert!(previous_day("not-a-date").is_err());
 }

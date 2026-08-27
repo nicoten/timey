@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO invoices\n            (number, client_id, issue_date, period_start, period_end, total_cents, file_path)\n        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "729b701cbe8cb45550fdd4f9ef7819250c0a0d8f24abed8ff29177dbd469ddfc"
+}

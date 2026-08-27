@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT p.id                AS \"project_id!\",\n               p.code              AS \"code!\",\n               p.name              AS \"name!\",\n               CAST(sum(e.duration_minutes) AS INTEGER) AS \"minutes!: i64\",\n               p.hourly_rate_cents AS \"hourly_rate_cents\"\n        FROM entries e\n        JOIN projects p ON p.id = e.project_id\n        WHERE p.client_id = ?1\n          AND e.started_at >= ?2\n          AND e.started_at <  ?3\n        GROUP BY p.id\n        ORDER BY lower(p.code)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "project_id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "code!",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "name!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "minutes!: i64",
+        "ordinal": 3,
+        "type_info": "Null"
+      },
+      {
+        "name": "hourly_rate_cents",
+        "ordinal": 4,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "d4f86b36f5ad7cfadc9b7419c219d54389159654c8c366eef2bddd46f2fff919"
+}
