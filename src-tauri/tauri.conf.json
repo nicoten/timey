@@ -12,12 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "",
+        "title": "timey",
         "width": 880,
         "height": 640,
         "minWidth": 620,
-        "minHeight": 520,
-        "titleBarStyle": "Overlay"
+        "minHeight": 520
       }
     ],
     "security": {

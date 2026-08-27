@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 
 import {
   clientsList,
@@ -15,7 +16,6 @@ import { DayPanel } from "./components/DayPanel";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { Button } from "./components/ui";
 import "./styles.css";
 
 type View = "month" | "settings";
@@ -69,6 +69,15 @@ export default function App() {
     void loadCatalog();
   }, [loadCatalog]);
 
+  // Settings is reached from the application menu (Cmd+,) rather than a button
+  // in the window; SettingsView's own back link returns to the calendar.
+  useEffect(() => {
+    const pending = listen("open-settings", () => setView("settings"));
+    return () => {
+      void pending.then((unlisten) => unlisten()).catch(() => {});
+    };
+  }, []);
+
   // Escape closes the day panel.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -91,29 +100,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/*
-        The native title bar is an overlay, so this rail is the window's drag
-        handle. "deep" matters: a bare data-tauri-drag-region drags only on a
-        direct hit, so the empty spacer below swallowed most drags. With "deep"
-        the whole subtree drags, and Tauri exempts buttons on its own, so
-        Settings still clicks. The left cell stays empty for the traffic lights.
-      */}
-      <div className="rail" data-tauri-drag-region="deep">
-        <span />
-        <span className="wordmark">timey</span>
-        <span className="rail-actions">
-          {view === "month" ? (
-            <Button variant="quiet" onClick={() => setView("settings")}>
-              Settings
-            </Button>
-          ) : (
-            <Button variant="quiet" onClick={() => setView("month")}>
-              Calendar
-            </Button>
-          )}
-        </span>
-      </div>
-
       <UpdateBanner state={updates.state} onInstall={updates.install} onDismiss={updates.dismiss} />
 
       <div className="workspace">

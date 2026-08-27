@@ -19,7 +19,7 @@ import {
 } from "../lib/api";
 import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
 import type { Updates } from "../lib/useUpdates";
-import { Button, Empty, ErrorNote, Field, Select, TextInput } from "./ui";
+import { Button, Empty, ErrorNote, Field, Modal, Select, TextInput } from "./ui";
 
 /** A constrained palette, so projects stay legible against the ledger. */
 const PROJECT_COLORS = [
@@ -57,20 +57,119 @@ export function SettingsView({ clients, projects, onChanged, onBack, updates }: 
   );
 }
 
+function SectionHead({
+  title,
+  count,
+  addLabel,
+  onAdd,
+}: {
+  title: string;
+  count: number;
+  addLabel: string;
+  onAdd?: () => void;
+}) {
+  return (
+    <div className="section-head">
+      <h2>{title}</h2>
+      <div className="section-head-actions">
+        <span className="eyebrow num">{count}</span>
+        {onAdd && (
+          <Button variant="add" onClick={onAdd} aria-label={addLabel} title={addLabel}>
+            +
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Runs an action, surfacing failure locally instead of throwing it away. */
+function useRowAction(onDone: () => void) {
+  const [error, setError] = useState<unknown>(null);
+
+  async function run(action: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await action();
+      onDone();
+    } catch (caught) {
+      setError(caught);
+    }
+  }
+
+  return { error, run, clearError: () => setError(null) };
+}
+
 // --- clients and their contacts --------------------------------------------
 
+type ClientDialogState = { mode: "create" } | { mode: "edit"; client: Client } | null;
+
 function ClientSection({ clients, onChanged }: { clients: Client[]; onChanged: () => void }) {
-  const [name, setName] = useState("");
+  const [dialog, setDialog] = useState<ClientDialogState>(null);
+
+  return (
+    <section className="section">
+      <SectionHead
+        title="Clients"
+        count={clients.length}
+        addLabel="Add client"
+        onAdd={() => setDialog({ mode: "create" })}
+      />
+
+      {clients.length === 0 ? (
+        <Empty title="No clients yet">
+          <p>Use + to add the first one.</p>
+        </Empty>
+      ) : (
+        <div className="ledger">
+          {clients.map((client) => (
+            <ClientRow
+              key={client.id}
+              client={client}
+              onChanged={onChanged}
+              onEdit={() => setDialog({ mode: "edit", client })}
+            />
+          ))}
+        </div>
+      )}
+
+      {dialog !== null && (
+        <ClientDialog
+          client={dialog.mode === "edit" ? dialog.client : null}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            onChanged();
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+function ClientDialog({
+  client,
+  onClose,
+  onSaved,
+}: {
+  client: Client | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(client?.name ?? "");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
-  async function add() {
+  async function submit() {
     setBusy(true);
     setError(null);
     try {
-      await clientCreate(name);
-      setName("");
-      onChanged();
+      if (client === null) {
+        await clientCreate(name);
+      } else {
+        await clientRename(client.id, name);
+      }
+      onSaved();
     } catch (caught) {
       setError(caught);
     } finally {
@@ -79,128 +178,61 @@ function ClientSection({ clients, onChanged }: { clients: Client[]; onChanged: (
   }
 
   return (
-    <section className="section">
-      <div className="section-head">
-        <h2>Clients</h2>
-        <span className="eyebrow">{clients.length} total</span>
-      </div>
-      <p className="section-note">
-        Everything hangs off a client: projects belong to one, and entries belong to a project.
-        Archiving keeps the history and frees the name for reuse.
-      </p>
-
-      <form
-        className="form-actions"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void add();
-        }}
-      >
+    <Modal
+      title={client === null ? "New client" : "Rename client"}
+      submitLabel={client === null ? "Add client" : "Save"}
+      onSubmit={() => void submit()}
+      onClose={onClose}
+      canSubmit={name.trim() !== ""}
+      busy={busy}
+    >
+      <Field label="Name">
         <TextInput
           value={name}
-          placeholder="Client name"
+          placeholder="Acme Industries"
           onChange={(event) => setName(event.currentTarget.value)}
-          style={{ flex: 1, padding: "7px 8px" }}
         />
-        <Button type="submit" variant="primary" disabled={name.trim() === "" || busy}>
-          Add client
-        </Button>
-      </form>
+      </Field>
       <ErrorNote error={error} />
-
-      {clients.length === 0 ? (
-        <Empty title="No clients yet">
-          <p>Add the first one above.</p>
-        </Empty>
-      ) : (
-        <div className="ledger">
-          {clients.map((client) => (
-            <ClientRow key={client.id} client={client} onChanged={onChanged} />
-          ))}
-        </div>
-      )}
-    </section>
+    </Modal>
   );
 }
 
-function ClientRow({ client, onChanged }: { client: Client; onChanged: () => void }) {
+function ClientRow({
+  client,
+  onChanged,
+  onEdit,
+}: {
+  client: Client;
+  onChanged: () => void;
+  onEdit: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [name, setName] = useState(client.name);
-  const [error, setError] = useState<unknown>(null);
-
-  async function run(action: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await action();
-      onChanged();
-    } catch (caught) {
-      setError(caught);
-    }
-  }
+  const { error, run } = useRowAction(onChanged);
 
   return (
     <>
       <div className="ledger-row">
         <div className="ledger-main">
-          {renaming ? (
-            <TextInput
-              value={name}
-              autoFocus
-              onChange={(event) => setName(event.currentTarget.value)}
-              style={{ padding: "5px 7px" }}
-            />
-          ) : (
-            <span className="ledger-name">{client.name}</span>
-          )}
+          <span className="ledger-name">{client.name}</span>
           {client.archivedAt !== null && <span className="tag">Archived</span>}
         </div>
         <div className="ledger-actions">
-          {renaming ? (
-            <>
-              <Button
-                variant="primary"
-                onClick={() =>
-                  void run(async () => {
-                    await clientRename(client.id, name);
-                    setRenaming(false);
-                  })
-                }
-              >
-                Save
-              </Button>
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setName(client.name);
-                  setRenaming(false);
-                  setError(null);
-                }}
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="quiet" onClick={() => setExpanded(!expanded)}>
-                {expanded ? "Hide contacts" : "Contacts"}
-              </Button>
-              <Button variant="quiet" onClick={() => setRenaming(true)}>
-                Rename
-              </Button>
-              <Button
-                variant="quiet"
-                onClick={() =>
-                  void run(() => clientSetArchived(client.id, client.archivedAt === null))
-                }
-              >
-                {client.archivedAt === null ? "Archive" : "Restore"}
-              </Button>
-              <Button variant="danger" onClick={() => void run(() => clientDelete(client.id))}>
-                Delete
-              </Button>
-            </>
-          )}
+          <Button variant="quiet" onClick={() => setExpanded(!expanded)}>
+            {expanded ? "Hide contacts" : "Contacts"}
+          </Button>
+          <Button variant="quiet" onClick={onEdit}>
+            Rename
+          </Button>
+          <Button
+            variant="quiet"
+            onClick={() => void run(() => clientSetArchived(client.id, client.archivedAt === null))}
+          >
+            {client.archivedAt === null ? "Archive" : "Restore"}
+          </Button>
+          <Button variant="danger" onClick={() => void run(() => clientDelete(client.id))}>
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -215,12 +247,13 @@ function ClientRow({ client, onChanged }: { client: Client; onChanged: () => voi
   );
 }
 
+type ContactDialogState = { mode: "create" } | { mode: "edit"; contact: Contact } | null;
+
 function ContactList({ clientId }: { clientId: number }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [draft, setDraft] = useState({ name: "", email: "" });
+  const [dialog, setDialog] = useState<ContactDialogState>(null);
 
   async function reload() {
     setLoading(true);
@@ -239,19 +272,7 @@ function ContactList({ clientId }: { clientId: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId]);
 
-  async function run(action: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await action();
-      setDraft({ name: "", email: "" });
-      setEditingId(null);
-      await reload();
-    } catch (caught) {
-      setError(caught);
-    }
-  }
-
-  const canSubmit = draft.name.trim() !== "" && draft.email.trim() !== "";
+  const { error: rowError, run } = useRowAction(() => void reload());
 
   return (
     <>
@@ -267,13 +288,7 @@ function ContactList({ clientId }: { clientId: number }) {
               <span className="ledger-sub">{contact.email}</span>
             </div>
             <div className="ledger-actions">
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setEditingId(contact.id);
-                  setDraft({ name: contact.name, email: contact.email });
-                }}
-              >
+              <Button variant="quiet" onClick={() => setDialog({ mode: "edit", contact })}>
                 Edit
               </Button>
               <Button variant="danger" onClick={() => void run(() => contactDelete(contact.id))}>
@@ -285,77 +300,91 @@ function ContactList({ clientId }: { clientId: number }) {
       )}
 
       <div className="ledger-row is-nested">
-        <form
-          className="form"
-          style={{ width: "100%" }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void run(() =>
-              editingId === null
-                ? contactCreate(clientId, draft.name, draft.email)
-                : contactUpdate(editingId, draft.name, draft.email),
-            );
-          }}
-        >
-          <span className="eyebrow">{editingId === null ? "Add contact" : "Edit contact"}</span>
-          <div className="field-pair">
-            <Field label="Name">
-              <TextInput
-                value={draft.name}
-                placeholder="Ann Reyes"
-                onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
-              />
-            </Field>
-            <Field label="Email">
-              <TextInput
-                value={draft.email}
-                placeholder="ann@example.com"
-                onChange={(event) => setDraft({ ...draft, email: event.currentTarget.value })}
-              />
-            </Field>
-          </div>
-          <ErrorNote error={error} />
-          <div className="form-actions">
-            <Button type="submit" variant="primary" disabled={!canSubmit}>
-              {editingId === null ? "Add contact" : "Save contact"}
-            </Button>
-            {editingId !== null && (
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setEditingId(null);
-                  setDraft({ name: "", email: "" });
-                }}
-              >
-                Cancel
-              </Button>
-            )}
-          </div>
-        </form>
+        <Button variant="quiet" onClick={() => setDialog({ mode: "create" })}>
+          + Add contact
+        </Button>
+        <ErrorNote error={error ?? rowError} />
       </div>
+
+      {dialog !== null && (
+        <ContactDialog
+          clientId={clientId}
+          contact={dialog.mode === "edit" ? dialog.contact : null}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            void reload();
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function ContactDialog({
+  clientId,
+  contact,
+  onClose,
+  onSaved,
+}: {
+  clientId: number;
+  contact: Contact | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(contact?.name ?? "");
+  const [email, setEmail] = useState(contact?.email ?? "");
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (contact === null) {
+        await contactCreate(clientId, name, email);
+      } else {
+        await contactUpdate(contact.id, name, email);
+      }
+      onSaved();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={contact === null ? "New contact" : "Edit contact"}
+      submitLabel={contact === null ? "Add contact" : "Save"}
+      onSubmit={() => void submit()}
+      onClose={onClose}
+      canSubmit={name.trim() !== "" && email.trim() !== ""}
+      busy={busy}
+    >
+      <Field label="Name">
+        <TextInput
+          value={name}
+          placeholder="Ann Reyes"
+          onChange={(event) => setName(event.currentTarget.value)}
+        />
+      </Field>
+      <Field label="Email">
+        <TextInput
+          value={email}
+          placeholder="ann@example.com"
+          onChange={(event) => setEmail(event.currentTarget.value)}
+        />
+      </Field>
+      <ErrorNote error={error} />
+    </Modal>
   );
 }
 
 // --- projects --------------------------------------------------------------
 
-interface ProjectDraft {
-  clientId: string;
-  code: string;
-  name: string;
-  color: string;
-  rate: string;
-}
-
-function emptyProjectDraft(clients: Client[]): ProjectDraft {
-  return {
-    clientId: clients[0] ? String(clients[0].id) : "",
-    code: "",
-    name: "",
-    color: "",
-    rate: "",
-  };
-}
+type ProjectDialogState = { mode: "create" } | { mode: "edit"; project: Project } | null;
 
 function ProjectSection({
   clients,
@@ -366,224 +395,191 @@ function ProjectSection({
   projects: Project[];
   onChanged: () => void;
 }) {
-  const [draft, setDraft] = useState<ProjectDraft>(() => emptyProjectDraft(clients));
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const [dialog, setDialog] = useState<ProjectDialogState>(null);
+  const { error, run } = useRowAction(onChanged);
   const clientsById = new Map(clients.map((client) => [client.id, client]));
-
-  // Once clients load, the form needs a valid default selection.
-  useEffect(() => {
-    setDraft((current) =>
-      current.clientId === "" && clients[0] ? { ...current, clientId: String(clients[0].id) } : current,
-    );
-  }, [clients]);
-
-  async function submit() {
-    setError(null);
-    try {
-      const rateCents = parseRateToCents(draft.rate);
-      const shared = {
-        code: draft.code,
-        name: draft.name,
-        color: draft.color === "" ? null : draft.color,
-        hourlyRateCents: rateCents,
-      };
-      if (editingId === null) {
-        await projectCreate({ clientId: Number(draft.clientId), ...shared });
-      } else {
-        await projectUpdate({ id: editingId, ...shared });
-      }
-      setDraft(emptyProjectDraft(clients));
-      setEditingId(null);
-      onChanged();
-    } catch (caught) {
-      setError(caught);
-    }
-  }
-
-  async function run(action: () => Promise<unknown>) {
-    setError(null);
-    try {
-      await action();
-      onChanged();
-    } catch (caught) {
-      setError(caught);
-    }
-  }
-
-  const canSubmit =
-    draft.clientId !== "" && draft.code.trim() !== "" && draft.name.trim() !== "";
 
   return (
     <section className="section">
-      <div className="section-head">
-        <h2>Projects</h2>
-        <span className="eyebrow">{projects.length} total</span>
-      </div>
-      <p className="section-note">
-        The code is the short handle you pick when logging time, so it has to be unique. The rate
-        is what turns tracked hours into the month's earnings — leave it blank for work you do not
-        bill.
-      </p>
+      <SectionHead
+        title="Projects"
+        count={projects.length}
+        addLabel="Add project"
+        onAdd={clients.length === 0 ? undefined : () => setDialog({ mode: "create" })}
+      />
 
       {clients.length === 0 ? (
         <Empty title="Add a client first">
           <p>A project belongs to a client.</p>
         </Empty>
+      ) : projects.length === 0 ? (
+        <Empty title="No projects yet">
+          <p>Use + to add one, then you can log time against it.</p>
+        </Empty>
       ) : (
-        <>
-          <div className="inset-form">
-            <form
-              className="form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submit();
-              }}
-            >
-              <span className="eyebrow">{editingId === null ? "Add project" : "Edit project"}</span>
-
-              {editingId === null && (
-                <Field label="Client">
-                  <Select
-                    value={draft.clientId}
-                    onChange={(event) => setDraft({ ...draft, clientId: event.currentTarget.value })}
-                  >
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.name}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              )}
-
-              <div className="field-pair">
-                <Field label="Code">
-                  <TextInput
-                    className="num"
-                    value={draft.code}
-                    placeholder="ACME-001"
-                    onChange={(event) => setDraft({ ...draft, code: event.currentTarget.value })}
-                  />
-                </Field>
-                <Field label="Name">
-                  <TextInput
-                    value={draft.name}
-                    placeholder="Website redesign"
-                    onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
-                  />
-                </Field>
+        <div className="ledger">
+          {projects.map((project) => (
+            <div key={project.id} className="ledger-row">
+              <div className="ledger-main">
+                <span
+                  className="swatch"
+                  style={project.color ? { background: project.color } : undefined}
+                  aria-hidden="true"
+                />
+                <span className="ledger-code">{project.code}</span>
+                <span className="ledger-name">{project.name}</span>
+                <span className="ledger-sub">
+                  {clientsById.get(project.clientId)?.name ?? "—"}
+                  {project.hourlyRateCents !== null &&
+                    ` · ${formatMoney(project.hourlyRateCents)}/h`}
+                </span>
+                {project.archivedAt !== null && <span className="tag">Archived</span>}
               </div>
-
-              <div className="field-pair">
-                <Field label="Hourly rate (USD)">
-                  <TextInput
-                    className="num"
-                    value={draft.rate}
-                    placeholder="150.00"
-                    onChange={(event) => setDraft({ ...draft, rate: event.currentTarget.value })}
-                  />
-                </Field>
-                <Field label="Color">
-                  <Select
-                    value={draft.color}
-                    onChange={(event) => setDraft({ ...draft, color: event.currentTarget.value })}
-                  >
-                    {PROJECT_COLORS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-
-              <ErrorNote error={error} />
-
-              <div className="form-actions">
-                <Button type="submit" variant="primary" disabled={!canSubmit}>
-                  {editingId === null ? "Add project" : "Save project"}
+              <div className="ledger-actions">
+                <Button variant="quiet" onClick={() => setDialog({ mode: "edit", project })}>
+                  Edit
                 </Button>
-                {editingId !== null && (
-                  <Button
-                    variant="quiet"
-                    onClick={() => {
-                      setEditingId(null);
-                      setDraft(emptyProjectDraft(clients));
-                      setError(null);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
+                <Button
+                  variant="quiet"
+                  onClick={() =>
+                    void run(() => projectSetArchived(project.id, project.archivedAt === null))
+                  }
+                >
+                  {project.archivedAt === null ? "Archive" : "Restore"}
+                </Button>
+                <Button variant="danger" onClick={() => void run(() => projectDelete(project.id))}>
+                  Delete
+                </Button>
               </div>
-            </form>
-          </div>
-
-          {projects.length === 0 ? (
-            <Empty title="No projects yet">
-              <p>Add one above, then you can log time against it.</p>
-            </Empty>
-          ) : (
-            <div className="ledger">
-              {projects.map((project) => (
-                <div key={project.id} className="ledger-row">
-                  <div className="ledger-main">
-                    <span
-                      className="swatch"
-                      style={project.color ? { background: project.color } : undefined}
-                      aria-hidden="true"
-                    />
-                    <span className="ledger-code">{project.code}</span>
-                    <span className="ledger-name">{project.name}</span>
-                    <span className="ledger-sub">
-                      {clientsById.get(project.clientId)?.name ?? "—"}
-                      {project.hourlyRateCents !== null &&
-                        ` · ${formatMoney(project.hourlyRateCents)}/h`}
-                    </span>
-                    {project.archivedAt !== null && <span className="tag">Archived</span>}
-                  </div>
-                  <div className="ledger-actions">
-                    <Button
-                      variant="quiet"
-                      onClick={() => {
-                        setEditingId(project.id);
-                        setError(null);
-                        setDraft({
-                          clientId: String(project.clientId),
-                          code: project.code,
-                          name: project.name,
-                          color: project.color ?? "",
-                          rate: centsToRateInput(project.hourlyRateCents),
-                        });
-                      }}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="quiet"
-                      onClick={() =>
-                        void run(() =>
-                          projectSetArchived(project.id, project.archivedAt === null),
-                        )
-                      }
-                    >
-                      {project.archivedAt === null ? "Archive" : "Restore"}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={() => void run(() => projectDelete(project.id))}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
             </div>
-          )}
-        </>
+          ))}
+        </div>
+      )}
+
+      <ErrorNote error={error} />
+
+      {dialog !== null && (
+        <ProjectDialog
+          clients={clients}
+          project={dialog.mode === "edit" ? dialog.project : null}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            onChanged();
+          }}
+        />
       )}
     </section>
+  );
+}
+
+function ProjectDialog({
+  clients,
+  project,
+  onClose,
+  onSaved,
+}: {
+  clients: Client[];
+  project: Project | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [clientId, setClientId] = useState(
+    String(project?.clientId ?? clients[0]?.id ?? ""),
+  );
+  const [code, setCode] = useState(project?.code ?? "");
+  const [name, setName] = useState(project?.name ?? "");
+  const [color, setColor] = useState(project?.color ?? "");
+  const [rate, setRate] = useState(centsToRateInput(project?.hourlyRateCents ?? null));
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      const shared = {
+        code,
+        name,
+        color: color === "" ? null : color,
+        // Throws a readable message on a malformed rate before anything is sent.
+        hourlyRateCents: parseRateToCents(rate),
+      };
+      if (project === null) {
+        await projectCreate({ clientId: Number(clientId), ...shared });
+      } else {
+        await projectUpdate({ id: project.id, ...shared });
+      }
+      onSaved();
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={project === null ? "New project" : "Edit project"}
+      submitLabel={project === null ? "Add project" : "Save"}
+      onSubmit={() => void submit()}
+      onClose={onClose}
+      canSubmit={clientId !== "" && code.trim() !== "" && name.trim() !== ""}
+      busy={busy}
+    >
+      {/* A project cannot change hands: entries already point at it. */}
+      {project === null && (
+        <Field label="Client">
+          <Select value={clientId} onChange={(event) => setClientId(event.currentTarget.value)}>
+            {clients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
+
+      <div className="field-pair">
+        <Field label="Code">
+          <TextInput
+            className="num"
+            value={code}
+            placeholder="ACME-001"
+            onChange={(event) => setCode(event.currentTarget.value)}
+          />
+        </Field>
+        <Field label="Name">
+          <TextInput
+            value={name}
+            placeholder="Website redesign"
+            onChange={(event) => setName(event.currentTarget.value)}
+          />
+        </Field>
+      </div>
+
+      <div className="field-pair">
+        <Field label="Hourly rate (USD)">
+          <TextInput
+            className="num"
+            value={rate}
+            placeholder="150.00"
+            onChange={(event) => setRate(event.currentTarget.value)}
+          />
+        </Field>
+        <Field label="Color">
+          <Select value={color} onChange={(event) => setColor(event.currentTarget.value)}>
+            {PROJECT_COLORS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <ErrorNote error={error} />
+    </Modal>
   );
 }
 
@@ -614,9 +610,7 @@ function UpdateSection({ updates }: { updates: Updates }) {
   })();
 
   const busy =
-    state.status === "checking" ||
-    state.status === "downloading" ||
-    state.status === "installing";
+    state.status === "checking" || state.status === "downloading" || state.status === "installing";
 
   return (
     <section className="section">
@@ -624,9 +618,6 @@ function UpdateSection({ updates }: { updates: Updates }) {
         <h2>Updates</h2>
         <span className="eyebrow num">{version === null ? "" : `v${version}`}</span>
       </div>
-      <p className="section-note">
-        timey checks once per launch and never installs anything without being asked.
-      </p>
 
       <div className="form-actions">
         <Button onClick={updates.check} disabled={busy}>
