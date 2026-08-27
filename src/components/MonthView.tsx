@@ -3,24 +3,19 @@ import { useMemo } from "react";
 import type { EntryDetail } from "../lib/api";
 import {
   WEEKDAY_LABELS,
+  currentMonth,
+  dayLabel,
   dayOfMonth,
   isSameMonth,
-  isWeekend,
-  currentMonth,
   monthGrid,
   monthLabel,
   shiftMonth,
   todayIso,
   type MonthCursor,
 } from "../lib/dates";
-import { formatMinutes, formatMoney, formatMoneyCompact, sumEarnedCents } from "../lib/money";
-import { Button } from "./ui";
-
-/** A full working day: the band reaches its tallest at this many minutes. */
-const FULL_DAY_MINUTES = 8 * 60;
-/** Percentage of cell height the band occupies at a full day, and at the minimum. */
-const BAND_MAX_PERCENT = 28;
-const BAND_MIN_PERCENT = 5;
+import { intensityLevel } from "../lib/intensity";
+import { formatMinutes, formatMoney, sumEarnedCents } from "../lib/money";
+import { Button, HoverTip } from "./ui";
 
 interface DayTotal {
   minutes: number;
@@ -67,11 +62,19 @@ export function MonthView({
     <>
       <header className="month-head">
         <div className="month-nav">
-          <Button variant="step" onClick={() => onCursorChange(shiftMonth(cursor, -1))} aria-label="Previous month">
+          <Button
+            variant="step"
+            onClick={() => onCursorChange(shiftMonth(cursor, -1))}
+            aria-label="Previous month"
+          >
             ‹
           </Button>
           <span className="month-title">{monthLabel(cursor)}</span>
-          <Button variant="step" onClick={() => onCursorChange(shiftMonth(cursor, 1))} aria-label="Next month">
+          <Button
+            variant="step"
+            onClick={() => onCursorChange(shiftMonth(cursor, 1))}
+            aria-label="Next month"
+          >
             ›
           </Button>
           {!onCurrentMonth && (
@@ -81,9 +84,6 @@ export function MonthView({
           )}
         </div>
 
-        {/* No captions: the units say what these are. The labels stay as
-            accessible names so the figures are not two bare numbers to a
-            screen reader. */}
         <div className="figures">
           <span
             className={`figure-value${monthMinutes === 0 ? " is-muted" : ""}`}
@@ -106,55 +106,52 @@ export function MonthView({
         ))}
       </div>
 
-      <div className="grid" role="grid" aria-label={`${monthLabel(cursor)} calendar`}>
+      <div className="grid">
         {cells.map((date, index) => {
           if (date === null) {
-            return <div key={`blank-${index}`} className="cell is-blank" role="presentation" />;
+            return <div key={`blank-${index}`} className="day-slot" />;
           }
 
           const total = totals.get(date);
           const minutes = total?.minutes ?? 0;
-          // A short day still shows a visible sliver, so "has hours" always reads.
-          const bandHeight =
+          const cents = total?.cents ?? 0;
+          const level = intensityLevel(minutes);
+
+          const summary =
             minutes === 0
-              ? 0
-              : BAND_MIN_PERCENT +
-                Math.min(minutes / FULL_DAY_MINUTES, 1) * (BAND_MAX_PERCENT - BAND_MIN_PERCENT);
+              ? "nothing logged"
+              : cents > 0
+                ? `${formatMinutes(minutes)} · ${formatMoney(cents)}`
+                : formatMinutes(minutes);
 
           const classes = [
-            "cell",
-            minutes > 0 ? "has-hours" : "",
-            isWeekend(date) ? "is-weekend" : "",
+            "day",
+            `level-${level}`,
             date === today ? "is-today" : "",
             date === selectedDay ? "is-selected" : "",
           ]
             .filter(Boolean)
             .join(" ");
 
-          return (
+          const button = (
             <button
-              key={date}
               type="button"
               className={classes}
               onClick={() => onSelectDay(date)}
-              aria-label={`${date}, ${minutes === 0 ? "no time logged" : formatMinutes(minutes)}`}
+              // The tooltip is hover-only, so the same facts go in the
+              // accessible name for anyone not using a pointer.
+              aria-label={`${dayLabel(date)}, ${summary}`}
               aria-pressed={date === selectedDay}
             >
-              {bandHeight > 0 && (
-                <span className="cell-band" style={{ height: `${bandHeight}%` }} aria-hidden="true" />
-              )}
-              <span className="cell-head">
-                <span className="cell-date">{dayOfMonth(date)}</span>
-                {total && (
-                  <span className="cell-figures">
-                    <span className="cell-hours">{formatMinutes(total.minutes)}</span>
-                    {total.cents > 0 && (
-                      <span className="cell-money">{formatMoneyCompact(total.cents)}</span>
-                    )}
-                  </span>
-                )}
-              </span>
+              {dayOfMonth(date)}
             </button>
+          );
+
+          return (
+            <div key={date} className="day-slot">
+              {/* A tooltip saying "nothing logged" is noise, so empty days get none. */}
+              {minutes === 0 ? button : <HoverTip label={summary}>{button}</HoverTip>}
+            </div>
           );
         })}
       </div>

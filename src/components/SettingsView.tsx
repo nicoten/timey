@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ToggleGroup } from "radix-ui";
 
 import {
   clientCreate,
@@ -18,6 +19,7 @@ import {
   type Project,
 } from "../lib/api";
 import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
+import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
 import type { Updates } from "../lib/useUpdates";
 import { Button, Empty, ErrorNote, Field, Modal, Select, TextInput } from "./ui";
 
@@ -32,28 +34,83 @@ const PROJECT_COLORS = [
   { label: "Sand", value: "#9a8a5f" },
 ] as const;
 
+const THEME_LABELS: Record<ThemeChoice, string> = {
+  system: "System",
+  light: "Light",
+  dark: "Dark",
+};
+
 interface Props {
   clients: Client[];
   projects: Project[];
   onChanged: () => void;
-  onBack: () => void;
+  onClose: () => void;
   updates: Updates;
+  theme: ThemeChoice;
+  onThemeChange: (choice: ThemeChoice) => void;
 }
 
-export function SettingsView({ clients, projects, onChanged, onBack, updates }: Props) {
+export function SettingsView({
+  clients,
+  projects,
+  onChanged,
+  onClose,
+  updates,
+  theme,
+  onThemeChange,
+}: Props) {
   return (
     <div className="settings">
       <header className="settings-head">
-        <Button variant="quiet" onClick={onBack}>
-          ‹ Back to calendar
-        </Button>
         <h1>Settings</h1>
+        <Button variant="quiet" onClick={onClose} aria-label="Close settings" title="Close settings">
+          ✕
+        </Button>
       </header>
 
       <ClientSection clients={clients} onChanged={onChanged} />
       <ProjectSection clients={clients} projects={projects} onChanged={onChanged} />
+      <AppearanceSection theme={theme} onThemeChange={onThemeChange} />
       <UpdateSection updates={updates} />
     </div>
+  );
+}
+
+// --- appearance ------------------------------------------------------------
+
+function AppearanceSection({
+  theme,
+  onThemeChange,
+}: {
+  theme: ThemeChoice;
+  onThemeChange: (choice: ThemeChoice) => void;
+}) {
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Appearance</h2>
+      </div>
+
+      {/* Three options rather than a two-way switch: "System" follows the OS,
+          which is the right default until it is deliberately overridden. */}
+      <ToggleGroup.Root
+        className="segmented"
+        type="single"
+        value={theme}
+        aria-label="Appearance"
+        onValueChange={(next) => {
+          // Radix reports "" when the active item is pressed again; ignore it so
+          // there is always exactly one selection.
+          if (next !== "") onThemeChange(next as ThemeChoice);
+        }}
+      >
+        {THEME_CHOICES.map((choice) => (
+          <ToggleGroup.Item key={choice} className="segmented-item" value={choice}>
+            {THEME_LABELS[choice]}
+          </ToggleGroup.Item>
+        ))}
+      </ToggleGroup.Root>
+    </section>
   );
 }
 

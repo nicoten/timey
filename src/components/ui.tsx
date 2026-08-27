@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import { Dialog, Tooltip } from "radix-ui";
 
 import { errorMessage } from "../lib/api";
 
@@ -45,6 +45,11 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input type="text" {...props} />;
 }
 
+/**
+ * A native select on purpose. It is already accessible and keyboard-driven, it
+ * behaves the way the platform does, and it handles the 96-option start-time
+ * list better than any custom listbox would.
+ */
 export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} />;
 }
@@ -69,8 +74,8 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 }
 
 /**
- * A modal form. Escape and the backdrop both close it, and the first field takes
- * focus on open so the keyboard works without reaching for the mouse.
+ * A modal form built on Radix Dialog, which supplies the focus trap, Escape and
+ * outside-click dismissal, scroll locking, and ARIA wiring.
  *
  * `onSubmit` is wired here rather than by each caller so every dialog commits on
  * Enter.
@@ -92,53 +97,55 @@ export function Modal({
   busy?: boolean;
   children: ReactNode;
 }) {
-  const card = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        onClose();
-      }
-    }
-    // Capture, so this closes the dialog before any other Escape handler runs.
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [onClose]);
-
-  useEffect(() => {
-    card.current?.querySelector<HTMLElement>("input, select")?.focus();
-  }, []);
-
   return (
-    <div
-      className="scrim"
-      role="presentation"
-      onMouseDown={(event) => {
-        // Only a click on the backdrop itself, not a drag ending there.
-        if (event.target === event.currentTarget) onClose();
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
       }}
     >
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={card}>
-        <form
-          className="form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSubmit();
-          }}
-        >
-          <h3 className="modal-title">{title}</h3>
-          {children}
-          <div className="form-actions">
-            <Button type="submit" variant="primary" disabled={!canSubmit || busy}>
-              {submitLabel}
-            </Button>
-            <Button variant="quiet" onClick={onClose} disabled={busy}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+      <Dialog.Portal>
+        <Dialog.Overlay className="scrim" />
+        {/* No description element, so opt out rather than leave a dangling id. */}
+        <Dialog.Content className="modal" aria-describedby={undefined}>
+          <form
+            className="form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmit();
+            }}
+          >
+            <Dialog.Title className="modal-title">{title}</Dialog.Title>
+            {children}
+            <div className="form-actions">
+              <Button type="submit" variant="primary" disabled={!canSubmit || busy}>
+                {submitLabel}
+              </Button>
+              <Button variant="quiet" onClick={onClose} disabled={busy}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+/**
+ * Wraps a trigger in a Radix tooltip. The child must be a single element that
+ * accepts a ref, which `asChild` forwards to.
+ */
+export function HoverTip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{children}</Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content className="tip" sideOffset={5}>
+          {label}
+          <Tooltip.Arrow className="tip-arrow" width={9} height={4} />
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }

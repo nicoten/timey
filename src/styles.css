@@ -1,18 +1,19 @@
 /*
  * timey — green-bar ledger paper.
  *
- * The look comes from the artifact this app replaces: continuous-feed
- * accounting paper, banded in pale green, hairline-ruled, with every figure set
- * in a monospace column so the numbers line up. That makes the green in a day
- * cell the ledger's own ink rather than decoration, and lets it carry how much
- * was worked, not merely whether.
+ * The look comes from the artifact this app replaces: accounting paper, hairline
+ * rules, and every figure set in a monospace column so numbers line up. The
+ * calendar reads as a shaded month: one circle per day, deeper green the longer
+ * the day, with the figures themselves moved into a tooltip so the grid stays
+ * quiet.
  */
+
+/* --- tokens ---------------------------------------------------------------- */
 
 :root {
   --paper: #f2f4ee;
   --card: #fbfcf9;
   --band: #e6ecdf;
-  --weekend: #eceae3;
   --rule: #ccd5c3;
   --rule-soft: #e1e7da;
   --ink: #1a1f18;
@@ -23,6 +24,17 @@
   --stamp: #ad3f28;
   --focus: #2f6f4f;
 
+  /* Day shading, five steps. Solid values rather than alpha, so contrast is
+     predictable in both themes. */
+  --l1: #dde8d4;
+  --l2: #bad3aa;
+  --l3: #8bb072;
+  --l4: #4f7440;
+  --l1-ink: var(--ink);
+  --l2-ink: var(--ink);
+  --l3-ink: #f8faf5;
+  --l4-ink: #f8faf5;
+
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
@@ -32,13 +44,16 @@
   color-scheme: light dark;
 }
 
-/* The same ledger, under a desk lamp. */
+/*
+ * The dark palette appears twice on purpose: once for the OS preference when no
+ * explicit choice has been made, and once for an explicit choice, so the
+ * Appearance control wins in both directions.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #12150f;
     --card: #191d15;
     --band: #202619;
-    --weekend: #1f2019;
     --rule: #2f3627;
     --rule-soft: #242b1e;
     --ink: #e9ede3;
@@ -48,8 +63,47 @@
     --fill-edge: #8fb473;
     --stamp: #d4674a;
     --focus: #8fb473;
+
+    --l1: #25321d;
+    --l2: #344a27;
+    --l3: #3f5c32;
+    --l4: #6d9857;
+    --l3-ink: #eef3e9;
+    --l4-ink: #12150f;
+
+    color-scheme: dark;
   }
 }
+
+:root[data-theme="dark"] {
+  --paper: #12150f;
+  --card: #191d15;
+  --band: #202619;
+  --rule: #2f3627;
+  --rule-soft: #242b1e;
+  --ink: #e9ede3;
+  --ink-2: #a4ac9a;
+  --ink-3: #747c6a;
+  --fill: 92 124 70;
+  --fill-edge: #8fb473;
+  --stamp: #d4674a;
+  --focus: #8fb473;
+
+  --l1: #25321d;
+  --l2: #344a27;
+  --l3: #3f5c32;
+  --l4: #6d9857;
+  --l3-ink: #eef3e9;
+  --l4-ink: #12150f;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* --- base ----------------------------------------------------------------- */
 
 * {
   box-sizing: border-box;
@@ -95,8 +149,25 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
+}
+
+/* The window's title bar, drawn by the app so the name can be centred. */
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.titlebar-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
 }
 
 .workspace {
@@ -108,7 +179,7 @@ body {
 .sheet {
   min-width: 0;
   overflow: auto;
-  padding: 16px 18px 22px;
+  padding: 10px 12px 12px;
 }
 
 /* --- month header --------------------------------------------------------- */
@@ -116,12 +187,11 @@ body {
 .month-head {
   display: flex;
   flex-wrap: wrap;
-  /* Month and figures sit on one line, centred against each other. */
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 9px;
-  margin-bottom: 10px;
+  gap: 12px;
+  padding-bottom: 7px;
+  margin-bottom: 8px;
   border-bottom: 2px solid var(--rule);
 }
 
@@ -144,7 +214,7 @@ body {
 .figures {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .figure-value {
@@ -159,132 +229,106 @@ body {
   color: var(--ink-3);
 }
 
-/* --- month grid ----------------------------------------------------------- */
+/* --- the month as shaded days --------------------------------------------- */
 
-.weekdays {
+.weekdays,
+.grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  margin-bottom: 5px;
-  padding: 0 1px;
+}
+
+.weekdays {
+  margin-bottom: 1px;
 }
 
 .weekdays > span {
-  padding-left: 9px;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
+  text-align: center;
   text-transform: uppercase;
   color: var(--ink-3);
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
+.day-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
 }
 
-.cell {
-  position: relative;
-  /* A button centres its content vertically via an anonymous box that
-     `display: block` does not override, which pushed the date to mid-cell.
-     A column flex container starting at flex-start puts it at the top. */
+.day {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  min-height: 76px;
-  padding: 6px 8px;
-  overflow: hidden;
-  background: var(--card);
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  background: transparent;
   border: 0;
-  font: inherit;
-  color: inherit;
-  text-align: left;
+  border-radius: 50%;
   cursor: pointer;
+  transition: background-color 140ms ease;
 }
 
-.cell.is-weekend {
-  background: var(--weekend);
+.day:hover {
+  box-shadow: 0 0 0 1px var(--rule);
 }
 
-/* Any hours at all tint the whole cell, so a 45-minute day still reads as
-   worked at a glance. The band on top of it carries how much. */
-.cell.has-hours {
-  background: rgb(var(--fill) / 0.1);
+.day.level-1 {
+  color: var(--l1-ink);
+  background: var(--l1);
 }
 
-.cell.has-hours.is-weekend {
-  background: rgb(var(--fill) / 0.16);
+.day.level-2 {
+  color: var(--l2-ink);
+  background: var(--l2);
 }
 
-.cell.is-blank {
-  background: var(--paper);
-  cursor: default;
+.day.level-3 {
+  color: var(--l3-ink);
+  background: var(--l3);
 }
 
-.cell:not(.is-blank):hover {
-  box-shadow: inset 0 0 0 1px var(--fill-edge);
+.day.level-4 {
+  color: var(--l4-ink);
+  background: var(--l4);
 }
 
-.cell.is-selected {
-  box-shadow: inset 0 0 0 2px var(--fill-edge);
+/* Today is a ring, so it never competes with the shading for the fill. */
+.day.is-today {
+  box-shadow: 0 0 0 1.5px var(--stamp);
 }
 
-/*
- * The signature: a band whose height is the day's hours against an 8-hour day.
- * Capped well below the cell so it never reaches the figures above it — the
- * band and the text each own their own space.
- */
-.cell-band {
-  position: absolute;
-  inset: auto 0 0 0;
-  background: rgb(var(--fill) / 0.5);
-  border-top: 2px solid var(--fill-edge);
-  transition: height 320ms cubic-bezier(0.2, 0.7, 0.3, 1);
+.day.level-0.is-today {
+  color: var(--stamp);
 }
 
-.cell-head {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
+/* Selection is the stronger ring: it must win over today's. */
+.day.is-selected {
+  box-shadow: 0 0 0 2px var(--ink);
 }
 
-.cell-date {
+/* --- tooltip -------------------------------------------------------------- */
+
+.tip {
+  z-index: 40;
+  padding: 4px 7px;
   font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-
-.cell.is-today .cell-date {
-  color: var(--card);
-  background: var(--stamp);
-  border-radius: 2px;
-  box-shadow: 0 0 0 3px var(--stamp);
-}
-
-.cell-figures {
-  text-align: right;
-}
-
-.cell-hours {
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: var(--ink);
-}
-
-.cell-money {
-  display: block;
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
   font-size: 11px;
-  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+  background: var(--ink);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.2);
+}
+
+.tip-arrow {
+  fill: var(--ink);
 }
 
 /* --- day panel ------------------------------------------------------------ */
@@ -311,12 +355,12 @@ body {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 18px 14px;
+  padding: 11px 14px 9px;
   border-bottom: 1px solid var(--rule);
 }
 
 .panel-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--ink);
 }
@@ -333,7 +377,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 14px 18px 20px;
+  padding: 10px 14px 14px;
 }
 
 /* --- ledger rows ---------------------------------------------------------- */
@@ -341,7 +385,7 @@ body {
 .entries {
   display: flex;
   flex-direction: column;
-  margin: 0 0 18px;
+  margin: 0 0 16px;
   border-top: 1px solid var(--rule-soft);
 }
 
@@ -349,13 +393,13 @@ body {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 4px 12px;
-  padding: 9px 2px;
-  background: none;
-  border: 0;
-  border-bottom: 1px solid var(--rule-soft);
+  padding: 8px 2px;
   font: inherit;
   color: inherit;
   text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--rule-soft);
   cursor: pointer;
 }
 
@@ -409,8 +453,8 @@ body {
   display: inline-block;
   width: 7px;
   height: 7px;
-  border-radius: 50%;
   background: var(--ink-3);
+  border-radius: 50%;
 }
 
 /* --- forms ---------------------------------------------------------------- */
@@ -446,12 +490,12 @@ body {
 .field select {
   width: 100%;
   padding: 7px 8px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
   font-family: var(--sans);
   font-size: 13px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
 }
 
 .field input.num,
@@ -483,12 +527,12 @@ body {
 
 .btn {
   padding: 6px 12px;
-  background: var(--card);
-  color: var(--ink);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
   font-family: var(--sans);
   font-size: 13px;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
   cursor: pointer;
 }
 
@@ -502,8 +546,8 @@ body {
 }
 
 .btn.is-primary {
-  background: var(--fill-edge);
   color: #f7faf4;
+  background: var(--fill-edge);
   border-color: var(--fill-edge);
 }
 
@@ -512,22 +556,22 @@ body {
 }
 
 .btn.is-primary:disabled {
+  color: var(--card);
   background: var(--rule);
   border-color: var(--rule);
-  color: var(--card);
 }
 
 .btn.is-quiet {
   padding: 5px 8px;
+  color: var(--ink-2);
   background: none;
   border-color: transparent;
-  color: var(--ink-2);
 }
 
 .btn.is-quiet:hover:not(:disabled) {
+  color: var(--ink);
   background: var(--band);
   border-color: transparent;
-  color: var(--ink);
 }
 
 .btn.is-danger {
@@ -546,6 +590,80 @@ body {
   text-align: center;
 }
 
+.btn.is-add {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  text-align: center;
+}
+
+/* --- modal (Radix Dialog) ------------------------------------------------- */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgb(20 26 18 / 0.34);
+}
+
+.modal {
+  position: fixed;
+  top: 14vh;
+  left: 50%;
+  z-index: 31;
+  width: calc(100% - 32px);
+  max-width: 380px;
+  padding: 16px 18px 18px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 0.22);
+  transform: translateX(-50%);
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* --- segmented control (Radix ToggleGroup) -------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.segmented-item {
+  padding: 5px 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  border-right: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.segmented-item:last-child {
+  border-right: 0;
+}
+
+.segmented-item:hover {
+  color: var(--ink);
+  background: var(--band);
+}
+
+.segmented-item[data-state="on"] {
+  color: #f7faf4;
+  background: var(--fill-edge);
+}
+
 /* --- settings ------------------------------------------------------------- */
 
 .settings {
@@ -556,23 +674,24 @@ body {
 .settings-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 14px;
-  padding-bottom: 16px;
-  margin-bottom: 22px;
+  padding-bottom: 9px;
+  margin-bottom: 14px;
   border-bottom: 2px solid var(--rule);
 }
 
 .settings-head h1 {
   margin: 0;
   font-family: var(--mono);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .section {
-  margin-bottom: 34px;
+  margin-bottom: 22px;
 }
 
 .section-head {
@@ -581,7 +700,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding-bottom: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -606,7 +725,7 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  padding: 10px 2px;
+  padding: 9px 2px;
   border-bottom: 1px solid var(--rule-soft);
 }
 
@@ -626,6 +745,8 @@ body {
   font-family: var(--mono);
   font-size: 12px;
   color: var(--ink-2);
+  /* A code split across two lines reads as broken. */
+  white-space: nowrap;
 }
 
 .ledger-name {
@@ -655,44 +776,6 @@ body {
   color: var(--ink-3);
   border: 1px solid var(--rule);
   border-radius: 2px;
-}
-
-/* --- modal ---------------------------------------------------------------- */
-
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 12vh 16px 16px;
-  background: rgb(20 26 18 / 0.34);
-}
-
-.modal {
-  width: 100%;
-  max-width: 380px;
-  padding: 16px 18px 18px;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  box-shadow: 0 18px 44px rgb(0 0 0 / 0.22);
-}
-
-.modal-title {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.btn.is-add {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  font-size: 15px;
-  line-height: 1;
-  text-align: center;
 }
 
 /* --- update notice -------------------------------------------------------- */
@@ -736,7 +819,7 @@ body {
 /* --- states --------------------------------------------------------------- */
 
 .empty {
-  padding: 18px 0;
+  padding: 16px 0;
   font-size: 13px;
   color: var(--ink-3);
 }
@@ -765,7 +848,7 @@ body {
 
 /* --- narrow windows ------------------------------------------------------- */
 
-@media (max-width: 900px) {
+@media (max-width: 820px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -773,17 +856,18 @@ body {
   .panel {
     position: fixed;
     inset: 0 0 0 auto;
+    z-index: 20;
     width: min(var(--panel-width), 100%);
     box-shadow: -12px 0 28px rgb(0 0 0 / 0.14);
   }
 
   .figures {
-    gap: 20px;
+    gap: 14px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cell-band,
+  .day,
   .panel {
     animation: none;
     transition: none;

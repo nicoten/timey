@@ -17,17 +17,6 @@ export function formatMoney(cents: number): string {
   return formatter.format(cents / 100);
 }
 
-const compactFormatter = new Intl.NumberFormat(LOCALE, {
-  style: "currency",
-  currency: CURRENCY,
-  maximumFractionDigits: 0,
-});
-
-/** For dense places like a calendar cell, where cents are noise. */
-export function formatMoneyCompact(cents: number): string {
-  return compactFormatter.format(cents / 100);
-}
-
 /**
  * What one entry earned, rounded to the cent. Returns `null` when the project
  * has no rate — that is "not billable", which is different from zero.
