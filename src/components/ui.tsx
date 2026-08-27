@@ -148,12 +148,18 @@ export function Dropdown({
   );
 }
 
-/** A dropdown with a visible caption above it. */
+/**
+ * A dropdown with a visible caption. `inline` puts the caption beside the
+ * control instead of above it, which matters in the popover where vertical
+ * space is the scarce dimension.
+ */
 export function DropdownField({
   label,
+  inline = false,
   ...dropdown
 }: {
   label: string;
+  inline?: boolean;
   value: string;
   onChange: (value: string) => void;
   options: DropdownOption[];
@@ -161,7 +167,7 @@ export function DropdownField({
   mono?: boolean;
 }) {
   return (
-    <div className="field">
+    <div className={`field${inline ? " is-inline" : ""}`}>
       <span>{label}</span>
       <Dropdown ariaLabel={label} {...dropdown} />
     </div>
@@ -223,15 +229,17 @@ export function Modal({
         {/* No description element, so opt out rather than leave a dangling id. */}
         <Dialog.Content className="modal" aria-describedby={undefined}>
           <form
-            className="form"
+            className="modal-form"
             onSubmit={(event) => {
               event.preventDefault();
               onSubmit();
             }}
           >
             <Dialog.Title className="modal-title">{title}</Dialog.Title>
-            {children}
-            <div className="form-actions">
+            {/* Only the body scrolls, so the buttons stay reachable however tall
+                the content gets. */}
+            <div className="modal-body">{children}</div>
+            <div className="form-actions modal-actions">
               <Button type="submit" variant="primary" disabled={!canSubmit || busy}>
                 {submitLabel}
               </Button>

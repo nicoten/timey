@@ -173,6 +173,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
     >
       <DropdownField
         label="Client"
+        inline
         value={clientId}
         onChange={setClientId}
         options={billable.map((client) => ({ value: String(client.id), label: client.name }))}
@@ -180,6 +181,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
 
       <DropdownField
         label="Month"
+        inline
         value={periodStart}
         onChange={setPeriodStart}
         options={monthOptions}

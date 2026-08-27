@@ -681,6 +681,25 @@ body {
   background: var(--card);
 }
 
+/* Caption beside the control, for short values in tight space. */
+.field.is-inline {
+  flex-direction: row;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.field.is-inline > span {
+  flex: 0 0 auto;
+}
+
+.field.is-inline .select-trigger {
+  width: auto;
+  min-width: 0;
+  max-width: 68%;
+  flex: 1;
+}
+
 .field-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -787,17 +806,45 @@ body {
 
 .modal {
   position: fixed;
-  top: 14vh;
+  /* Near the top rather than a fraction down: in a 350px-tall popover a
+     percentage offset wastes the space the dialog needs. */
+  top: 10px;
   left: 50%;
   z-index: 31;
-  width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 20px);
   max-width: 380px;
-  padding: 16px 18px 18px;
+  max-height: calc(100dvh - 20px);
+  padding: 14px 16px 14px;
   background: var(--card);
   border: 1px solid var(--rule);
   border-radius: 5px;
   box-shadow: 0 18px 44px rgb(0 0 0 / 0.22);
   transform: translateX(-50%);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 0;
+}
+
+.modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for a focus ring on the first and last controls. */
+  padding: 2px;
+  margin: -2px;
+}
+
+.modal-actions {
+  flex: 0 0 auto;
 }
 
 .modal-title {
