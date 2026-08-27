@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        UPDATE clients\n        SET archived_at = CASE\n            WHEN ?2 THEN coalesce(archived_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))\n            ELSE NULL\n        END\n        WHERE id = ?1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "91e11c8bf9df1c2edbbb53127e8083c9562041d25868498ecfb087ddcaa93725"
+}

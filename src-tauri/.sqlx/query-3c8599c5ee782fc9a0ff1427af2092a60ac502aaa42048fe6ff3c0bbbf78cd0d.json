@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT substr(started_at, 1, 10) AS \"day!: String\",\n               CAST(sum(duration_minutes) AS INTEGER) AS \"minutes!: i64\"\n        FROM entries\n        WHERE started_at >= ?1 AND started_at < ?2\n        GROUP BY substr(started_at, 1, 10)\n        ORDER BY substr(started_at, 1, 10)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "day!: String",
+        "ordinal": 0,
+        "type_info": "Null"
+      },
+      {
+        "name": "minutes!: i64",
+        "ordinal": 1,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "3c8599c5ee782fc9a0ff1427af2092a60ac502aaa42048fe6ff3c0bbbf78cd0d"
+}

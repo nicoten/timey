@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO projects (client_id, code, name, color, hourly_rate_cents)\n        VALUES (?1, ?2, ?3, ?4, ?5)\n        RETURNING id AS \"id!\", client_id, code, name, color, hourly_rate_cents,\n                  archived_at, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "client_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "code",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "color",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "hourly_rate_cents",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4b0c31589c4416cfbf4c5021e5c8c778661cfaf52fc7f80dd4f0b19b947495ef"
+}

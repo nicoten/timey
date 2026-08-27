@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id AS \"id!\", client_id, code, name, color, hourly_rate_cents,\n               archived_at, created_at\n        FROM projects WHERE id = ?1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "client_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "code",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "color",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "hourly_rate_cents",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4517a4dc401b286122b40d481aa7dc517362bd3b4e0fbb2dd6272eb5d1019e19"
+}

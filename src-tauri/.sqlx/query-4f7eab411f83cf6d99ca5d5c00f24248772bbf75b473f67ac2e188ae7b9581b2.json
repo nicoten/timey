@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id AS \"id!\", client_id, code, name, color, hourly_rate_cents,\n               archived_at, created_at\n        FROM projects\n        WHERE (?1 IS NULL OR client_id = ?1)\n          AND (?2 OR archived_at IS NULL)\n        ORDER BY lower(code)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "client_id",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "code",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "color",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "hourly_rate_cents",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "4f7eab411f83cf6d99ca5d5c00f24248772bbf75b473f67ac2e188ae7b9581b2"
+}

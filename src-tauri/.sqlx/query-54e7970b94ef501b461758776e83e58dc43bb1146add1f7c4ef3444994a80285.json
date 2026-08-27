@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT e.id                AS \"id!\",\n               e.project_id        AS \"project_id!\",\n               e.name              AS \"name!\",\n               e.started_at        AS \"started_at!\",\n               e.duration_minutes  AS \"duration_minutes!\",\n               strftime('%Y-%m-%dT%H:%M', e.started_at,\n                        '+' || e.duration_minutes || ' minutes') AS \"ended_at!: String\",\n               p.code              AS \"project_code!\",\n               p.name              AS \"project_name!\",\n               c.id                AS \"client_id!\",\n               c.name              AS \"client_name!\"\n        FROM entries e\n        JOIN projects p ON p.id = e.project_id\n        JOIN clients  c ON c.id = p.client_id\n        WHERE e.started_at >= ?1\n          AND e.started_at <  ?2\n          AND (?3 IS NULL OR e.project_id = ?3)\n        ORDER BY e.started_at, e.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "project_id!",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "started_at!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "duration_minutes!",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "ended_at!: String",
+        "ordinal": 5,
+        "type_info": "Null"
+      },
+      {
+        "name": "project_code!",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "project_name!",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "client_id!",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "client_name!",
+        "ordinal": 9,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "54e7970b94ef501b461758776e83e58dc43bb1146add1f7c4ef3444994a80285"
+}
