@@ -92,7 +92,7 @@ export function MonthView({
             {formatMinutes(monthMinutes)}
           </span>
           <span
-            className={`figure-value${monthCents === 0 ? " is-muted" : ""}`}
+            className={`figure-value is-earned${monthCents === 0 ? " is-muted" : ""}`}
             aria-label={`${formatMoney(monthCents)} earned this month`}
           >
             {formatMoney(monthCents)}

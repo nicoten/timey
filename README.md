@@ -1,9 +1,16 @@
 # timey
 
-A desktop time tracker built with [Tauri v2](https://tauri.app), React, and SQLite.
+A macOS menu bar time tracker built with [Tauri v2](https://tauri.app), React,
+and SQLite.
+
+It lives as a clock icon in the menu bar with no Dock icon and no window of its
+own: clicking the icon opens a popover anchored beneath it, and it dismisses when
+it loses focus. Right-clicking the icon gives Settings and Quit.
 
 Time entries are entered by hand — there is no running timer. An entry belongs to
-a project, has a name, a start time, and a duration in 15-minute increments.
+a project, has a name, a start time, and a duration in 15-minute increments. The
+month reads as a shaded grid: one circle per day, deeper the longer the day, with
+hours and earnings in a tooltip on hover.
 
 ## Requirements
 
@@ -18,6 +25,11 @@ a project, has a name, a start time, and a duration in 15-minute increments.
 pnpm install
 pnpm tauri dev
 ```
+
+**No window appears at launch, by design.** Look for the clock icon in the menu
+bar and click it. The app is a menu bar accessory (`ActivationPolicy::Accessory`),
+so it has no Dock icon and shows no menu bar of its own — quit from the icon's
+right-click menu.
 
 The database is created on first launch inside the platform app-data directory —
 on macOS `~/Library/Application Support/com.nicotejera.timey/timey.db`. Migrations

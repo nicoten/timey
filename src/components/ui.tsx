@@ -149,3 +149,19 @@ export function HoverTip({ label, children }: { label: string; children: ReactNo
     </Tooltip.Root>
   );
 }
+
+/**
+ * A cog. Eight teeth with the centre punched out via `fill-rule: evenodd`,
+ * which stays crisp at this size where a stroked ring would blur.
+ */
+export function SettingsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M6.60,0.94 L9.40,0.94 L9.34,3.08 L10.54,3.57 L12.00,2.01 L13.99,4.00 L12.43,5.46 L12.92,6.66 L15.06,6.60 L15.06,9.40 L12.92,9.34 L12.43,10.54 L13.99,12.00 L12.00,13.99 L10.54,12.43 L9.34,12.92 L9.40,15.06 L6.60,15.06 L6.66,12.92 L5.46,12.43 L4.00,13.99 L2.01,12.00 L3.57,10.54 L3.08,9.34 L0.94,9.40 L0.94,6.60 L3.08,6.66 L3.57,5.46 L2.01,4.00 L4.00,2.01 L5.46,3.57 L6.66,3.08 Z M10.85,8.00 A2.85,2.85 0 1 0 5.15,8.00 A2.85,2.85 0 1 0 10.85,8.00 Z"
+        fill="currentColor"
+        fillRule="evenodd"
+      />
+    </svg>
+  );
+}

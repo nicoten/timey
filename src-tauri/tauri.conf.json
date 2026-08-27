@@ -12,17 +12,23 @@
   "app": {
     "windows": [
       {
-        "title": "",
+        "title": "timey",
         "width": 420,
         "height": 350,
-        "minWidth": 360,
-        "minHeight": 240,
-        "titleBarStyle": "Overlay"
+        "label": "main",
+        "decorations": false,
+        "resizable": false,
+        "visible": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": true,
+        "transparent": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

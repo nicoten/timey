@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Tooltip } from "radix-ui";
 
 import {
@@ -18,6 +19,7 @@ import { DayPanel } from "./components/DayPanel";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { Button, SettingsIcon } from "./components/ui";
 import "./styles.css";
 
 type View = "month" | "settings";
@@ -87,14 +89,25 @@ export default function App() {
     };
   }, []);
 
-  // Escape closes the day panel.
+  // Escape steps back out one layer at a time, dismissing the popover last.
+  // Radix stops the event inside its own dialogs, so those close first.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setSelectedDay(null);
+      if (event.key !== "Escape") return;
+
+      if (selectedDay !== null) {
+        setSelectedDay(null);
+      } else if (view === "settings") {
+        setView("month");
+      } else {
+        // A popover dismisses rather than closing: the tray icon reopens it.
+        void getCurrentWindow().hide();
+      }
     }
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectedDay, view]);
 
   function changeMonth(next: MonthCursor) {
     setCursor(next);
@@ -111,14 +124,24 @@ export default function App() {
     <Tooltip.Provider delayDuration={120} skipDelayDuration={300}>
       <div className="app">
         {/*
-          macOS draws its own title bar left-aligned and offers no way to centre
-          it, so the native title is empty and this strip is the title bar: the
-          traffic lights float over its left end. "deep" is load-bearing — a bare
-          data-tauri-drag-region only drags on a direct hit, which the centred
-          span would swallow.
+          The popover's own header. There is no drag region: a popover is
+          anchored to the menu bar icon rather than moved. Settings lives here
+          because an accessory app shows no menu bar, which would otherwise
+          leave the tray's right-click menu as the only way in.
         */}
-        <div className="titlebar" data-tauri-drag-region="deep">
+        <div className="titlebar">
+          <span />
           <span className="titlebar-name">timey</span>
+          <span className="titlebar-actions">
+            <Button
+              variant="quiet"
+              onClick={() => setView(view === "settings" ? "month" : "settings")}
+              aria-label={view === "settings" ? "Back to calendar" : "Settings"}
+              title={view === "settings" ? "Back to calendar" : "Settings"}
+            >
+              <SettingsIcon />
+            </Button>
+          </span>
         </div>
 
         <UpdateBanner
