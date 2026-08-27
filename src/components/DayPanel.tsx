@@ -17,11 +17,28 @@ import {
   timeOfDay,
 } from "../lib/dates";
 import { earnedCents, formatMinutes, formatMoney, sumEarnedCents } from "../lib/money";
-import { Button, Empty, ErrorNote, Field, Select, TextInput } from "./ui";
+import {
+  Button,
+  Dropdown,
+  DropdownField,
+  Empty,
+  ErrorNote,
+  TextInput,
+  type DropdownOption,
+} from "./ui";
 
 const DEFAULT_START = "09:00";
 const DEFAULT_DURATION = 60;
-const SLOTS = startTimeSlots();
+
+const START_OPTIONS: DropdownOption[] = startTimeSlots().map((slot) => ({
+  value: slot,
+  label: slot,
+}));
+
+const DURATION_CHOICES: DropdownOption[] = DURATION_OPTIONS.map((minutes) => ({
+  value: String(minutes),
+  label: formatMinutes(minutes),
+}));
 
 interface Props {
   date: string;
@@ -92,6 +109,14 @@ export function DayPanel({
   const dayCents = sumEarnedCents(dayEntries);
   const projectsById = new Map(projects.map((project) => [project.id, project]));
   const clientsById = new Map(clients.map((client) => [client.id, client]));
+
+  const projectOptions: DropdownOption[] = projects.map((project) => {
+    const client = clientsById.get(project.clientId);
+    return {
+      value: String(project.id),
+      label: `${project.code} — ${project.name}${client ? ` (${client.name})` : ""}`,
+    };
+  });
 
   function beginEdit(entry: EntryDetail) {
     setEditingId(entry.id);
@@ -232,78 +257,57 @@ export function DayPanel({
               )}
             </div>
 
-            <Field label="Project">
-              <Select
-                value={draft.projectId}
-                onChange={(event) => setDraft({ ...draft, projectId: event.currentTarget.value })}
-              >
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.code} — {project.name}
-                    {clientsById.get(project.clientId)
-                      ? ` (${clientsById.get(project.clientId)!.name})`
-                      : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
+            {/* No caption: the options show a code and a name, which says what
+                this is more clearly than the word "Project" would. */}
+            <Dropdown
+              ariaLabel="Project"
+              value={draft.projectId}
+              onChange={(projectId) => setDraft({ ...draft, projectId })}
+              options={projectOptions}
+            />
 
-            <Field label="What did you work on?">
-              <TextInput
-                value={draft.name}
-                placeholder="Kickoff call"
-                onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
-              />
-            </Field>
+            <TextInput
+              value={draft.name}
+              placeholder="What did you work on?"
+              aria-label="What did you work on?"
+              onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
+            />
 
             <div className="field-pair">
-              <Field label="Start">
-                <Select
-                  className="num"
-                  value={draft.startTime}
-                  onChange={(event) => setDraft({ ...draft, startTime: event.currentTarget.value })}
-                >
-                  {SLOTS.map((slot) => (
-                    <option key={slot} value={slot}>
-                      {slot}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Duration">
-                <Select
-                  className="num"
-                  value={draft.durationMinutes}
-                  onChange={(event) =>
-                    setDraft({ ...draft, durationMinutes: Number(event.currentTarget.value) })
-                  }
-                >
-                  {DURATION_OPTIONS.map((minutes) => (
-                    <option key={minutes} value={minutes}>
-                      {formatMinutes(minutes)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <DropdownField
+                label="Start"
+                mono
+                value={draft.startTime}
+                onChange={(startTime) => setDraft({ ...draft, startTime })}
+                options={START_OPTIONS}
+              />
+              <DropdownField
+                label="Duration"
+                mono
+                value={String(draft.durationMinutes)}
+                onChange={(minutes) =>
+                  setDraft({ ...draft, durationMinutes: Number(minutes) })
+                }
+                options={DURATION_CHOICES}
+              />
             </div>
 
             <ErrorNote error={error} />
 
-            <div className="form-actions">
-              <Button type="submit" variant="primary" disabled={!canSubmit}>
-                {editingId === null ? "Add entry" : "Save changes"}
-              </Button>
-              {editingId !== null && (
-                <>
-                  <Button variant="quiet" onClick={cancelEdit}>
-                    Cancel
-                  </Button>
-                  <Button variant="danger" onClick={() => void remove()} disabled={busy}>
-                    Delete
-                  </Button>
-                </>
-              )}
-            </div>
+            <Button type="submit" variant="primary" block disabled={!canSubmit}>
+              {editingId === null ? "Add entry" : "Save changes"}
+            </Button>
+
+            {editingId !== null && (
+              <div className="form-actions">
+                <Button variant="quiet" onClick={cancelEdit}>
+                  Cancel
+                </Button>
+                <Button variant="danger" onClick={() => void remove()} disabled={busy}>
+                  Delete
+                </Button>
+              </div>
+            )}
           </form>
         )}
       </div>

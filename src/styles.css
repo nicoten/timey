@@ -514,8 +514,8 @@ body {
   color: var(--ink-3);
 }
 
-.field input,
-.field select {
+.text-input,
+.select-trigger {
   width: 100%;
   padding: 7px 8px;
   font-family: var(--sans);
@@ -526,17 +526,82 @@ body {
   border-radius: var(--radius);
 }
 
-.field input.num,
-.field select.num {
+.text-input.num,
+.select-trigger.num {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
 }
 
-.field input:focus,
-.field select:focus {
+.text-input:focus,
+.select-trigger:focus {
   border-color: var(--fill-edge);
   outline: none;
   box-shadow: 0 0 0 2px rgb(var(--fill) / 0.3);
+}
+
+/* --- dropdown (Radix Select) ---------------------------------------------- */
+
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.select-caret {
+  font-size: 9px;
+  color: var(--ink-3);
+}
+
+.select-content {
+  z-index: 50;
+  overflow: hidden;
+  /* Popper exposes the trigger width, so the list lines up under it. */
+  min-width: var(--radix-select-trigger-width);
+  max-height: 240px;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+}
+
+.select-viewport {
+  padding: 3px;
+}
+
+.select-item {
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--ink);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.select-item.num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.select-item[data-highlighted] {
+  background: var(--band);
+}
+
+.select-item[data-state="checked"] {
+  font-weight: 600;
+  color: var(--fill-edge);
+}
+
+.select-scroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  font-size: 9px;
+  color: var(--ink-3);
+  background: var(--card);
 }
 
 .field-pair {
@@ -616,6 +681,13 @@ body {
   font-family: var(--mono);
   font-size: 14px;
   text-align: center;
+}
+
+.btn.is-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 .btn.is-add {

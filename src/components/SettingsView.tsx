@@ -21,18 +21,34 @@ import {
 import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
 import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
 import type { Updates } from "../lib/useUpdates";
-import { Button, Empty, ErrorNote, Field, Modal, Select, TextInput } from "./ui";
+import {
+  Button,
+  DropdownField,
+  Empty,
+  ErrorNote,
+  Field,
+  Modal,
+  TextInput,
+  type DropdownOption,
+} from "./ui";
 
-/** A constrained palette, so projects stay legible against the ledger. */
-const PROJECT_COLORS = [
-  { label: "No color", value: "" },
+/**
+ * A constrained palette, so projects stay legible against the ledger.
+ *
+ * "none" rather than an empty string: Radix Select refuses empty values, so the
+ * absence of a colour needs a name of its own, mapped back to null on save.
+ */
+const NO_COLOR = "none";
+
+const COLOR_OPTIONS: DropdownOption[] = [
+  { label: "No color", value: NO_COLOR },
   { label: "Moss", value: "#4f7440" },
   { label: "Ochre", value: "#8a6a1f" },
   { label: "Clay", value: "#ad3f28" },
   { label: "Slate", value: "#3f5666" },
   { label: "Plum", value: "#6b3f5e" },
   { label: "Sand", value: "#9a8a5f" },
-] as const;
+];
 
 const THEME_LABELS: Record<ThemeChoice, string> = {
   system: "System",
@@ -546,7 +562,7 @@ function ProjectDialog({
   );
   const [code, setCode] = useState(project?.code ?? "");
   const [name, setName] = useState(project?.name ?? "");
-  const [color, setColor] = useState(project?.color ?? "");
+  const [color, setColor] = useState(project?.color ?? NO_COLOR);
   const [rate, setRate] = useState(centsToRateInput(project?.hourlyRateCents ?? null));
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -558,7 +574,7 @@ function ProjectDialog({
       const shared = {
         code,
         name,
-        color: color === "" ? null : color,
+        color: color === NO_COLOR ? null : color,
         // Throws a readable message on a malformed rate before anything is sent.
         hourlyRateCents: parseRateToCents(rate),
       };
@@ -586,15 +602,15 @@ function ProjectDialog({
     >
       {/* A project cannot change hands: entries already point at it. */}
       {project === null && (
-        <Field label="Client">
-          <Select value={clientId} onChange={(event) => setClientId(event.currentTarget.value)}>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <DropdownField
+          label="Client"
+          value={clientId}
+          onChange={setClientId}
+          options={clients.map((client) => ({
+            value: String(client.id),
+            label: client.name,
+          }))}
+        />
       )}
 
       <div className="field-pair">
@@ -624,15 +640,7 @@ function ProjectDialog({
             onChange={(event) => setRate(event.currentTarget.value)}
           />
         </Field>
-        <Field label="Color">
-          <Select value={color} onChange={(event) => setColor(event.currentTarget.value)}>
-            {PROJECT_COLORS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <DropdownField label="Color" value={color} onChange={setColor} options={COLOR_OPTIONS} />
       </div>
 
       <ErrorNote error={error} />

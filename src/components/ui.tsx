@@ -1,5 +1,5 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
-import { Dialog, Tooltip } from "radix-ui";
+import type { InputHTMLAttributes, ReactNode } from "react";
+import { Dialog, Label, Select, Tooltip } from "radix-ui";
 
 import { errorMessage } from "../lib/api";
 
@@ -21,37 +21,119 @@ interface ButtonProps {
   variant?: ButtonVariant;
   disabled?: boolean;
   title?: string;
+  /** Fills the width of its container. */
+  block?: boolean;
   "aria-label"?: string;
 }
 
-export function Button({ children, variant = "default", type = "button", ...rest }: ButtonProps) {
+export function Button({
+  children,
+  variant = "default",
+  type = "button",
+  block = false,
+  ...rest
+}: ButtonProps) {
   return (
-    <button type={type} className={`btn ${VARIANT_CLASS[variant]}`} {...rest}>
+    <button
+      type={type}
+      className={`btn ${VARIANT_CLASS[variant]}${block ? " is-block" : ""}`}
+      {...rest}
+    >
       {children}
     </button>
   );
 }
 
+/** For native inputs, where wrapping in a label is the correct association. */
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="field">
+    <Label.Root className="field">
       <span>{label}</span>
       {children}
-    </label>
+    </Label.Root>
   );
 }
 
-export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input type="text" {...props} />;
+/** Carries its own class so it styles correctly with or without a Field. */
+export function TextInput({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input type="text" className={`text-input ${className}`.trim()} {...props} />;
+}
+
+export interface DropdownOption {
+  /** Radix rejects an empty string, so callers map "none" to null themselves. */
+  value: string;
+  label: string;
 }
 
 /**
- * A native select on purpose. It is already accessible and keyboard-driven, it
- * behaves the way the platform does, and it handles the 96-option start-time
- * list better than any custom listbox would.
+ * A Radix Select. `ariaLabel` is required rather than optional: some of these
+ * carry no visible label, and an unlabelled listbox is not usable by screen
+ * reader.
+ *
+ * Deliberately not wrapped in a Label — clicking a label bound to a custom
+ * trigger toggles it twice. Dropdowns that show a caption use `DropdownField`,
+ * which pairs a plain span with the trigger instead.
  */
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} />;
+export function Dropdown({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+  placeholder,
+  mono = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: DropdownOption[];
+  ariaLabel: string;
+  placeholder?: string;
+  mono?: boolean;
+}) {
+  return (
+    <Select.Root value={value} onValueChange={onChange}>
+      <Select.Trigger className={`select-trigger${mono ? " num" : ""}`} aria-label={ariaLabel}>
+        <Select.Value placeholder={placeholder} />
+        <Select.Icon className="select-caret">▾</Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="select-content" position="popper" sideOffset={4}>
+          <Select.ScrollUpButton className="select-scroll">▴</Select.ScrollUpButton>
+          <Select.Viewport className="select-viewport">
+            {options.map((option) => (
+              <Select.Item
+                key={option.value}
+                value={option.value}
+                className={`select-item${mono ? " num" : ""}`}
+              >
+                <Select.ItemText>{option.label}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+          <Select.ScrollDownButton className="select-scroll">▾</Select.ScrollDownButton>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
+/** A dropdown with a visible caption above it. */
+export function DropdownField({
+  label,
+  ...dropdown
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: DropdownOption[];
+  placeholder?: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="field">
+      <span>{label}</span>
+      <Dropdown ariaLabel={label} {...dropdown} />
+    </div>
+  );
 }
 
 /** Renders nothing when there is no error, so callers need no conditional. */
