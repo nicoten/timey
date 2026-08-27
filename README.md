@@ -174,6 +174,7 @@ either a missed release or one that is offered forever. One command sets all
 three:
 
 ```sh
+pnpm test:rust
 pnpm set-version 0.2.0
 cargo check --manifest-path src-tauri/Cargo.toml   # refresh Cargo.lock
 git commit -am "Release v0.2.0"
@@ -181,9 +182,21 @@ git tag v0.2.0
 git push --follow-tags
 ```
 
-Pushing the tag is what publishes. `.github/workflows/release.yml` builds on a
-macOS runner for `aarch64-apple-darwin`, runs the Rust tests first, then creates
-the GitHub release with the signed bundle and a `latest.json` manifest.
+The tag is a marker, not a trigger: nothing is published until the bundle is
+built and uploaded. That happens here, on the machine holding the signing key,
+because `.github/workflows/release.yml` is `workflow_dispatch` only — see its
+header for why, and for what to add to make the runner the release path.
+
+```sh
+pnpm tauri build
+cd src-tauri/target/release/bundle/macos
+gh release create v0.2.0 --title "Timey 0.2.0" --notes "..." \
+  latest.json Timey.app.tar.gz Timey.app.tar.gz.sig
+```
+
+The three assets are what the updater reads: `latest.json` advertises the
+version, and the `.sig` is what the app checks the bundle against. A release
+missing any of them is a release installed copies cannot take.
 
 ### How updates are trusted
 
