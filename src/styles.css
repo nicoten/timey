@@ -101,18 +101,32 @@ body {
 }
 
 .rail {
-  display: flex;
+  display: grid;
+  /* Three tracks so the name is centred on the window rather than on the space
+     left over beside the buttons. The empty first track is where macOS draws
+     the traffic lights. */
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 18px;
+  gap: 12px;
+  padding: 0 14px;
   background: var(--card);
   border-bottom: 1px solid var(--rule);
+  /* Dragging a window should not select its title. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rail-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-self: end;
 }
 
 .wordmark {
   display: flex;
   align-items: center;
+  justify-self: center;
   gap: 9px;
   font-family: var(--mono);
   font-size: 14px;

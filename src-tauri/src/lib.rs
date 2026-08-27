@@ -5,14 +5,47 @@ pub mod model;
 pub mod validate;
 
 use tauri::Manager;
+use tauri::menu::{Menu, PredefinedMenuItem, Submenu};
 
 /// Filename inside the platform app-data directory. On macOS this resolves to
 /// `~/Library/Application Support/com.nicotejera.timey/timey.db`.
 const DATABASE_FILE: &str = "timey.db";
 
+/// The smallest menu macOS will accept.
+///
+/// macOS always shows an application menu, so the bar cannot be emptied
+/// entirely — but File, View, Window and Help are gone. The standard edit items
+/// live inside the application submenu rather than a visible Edit menu: their
+/// keyboard equivalents are matched by key, not by which menu holds them, so
+/// Cmd+C/V/X/A keep working in text fields while the bar stays bare.
+fn build_menu<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let app_menu = Submenu::with_items(
+        handle,
+        "timey",
+        true,
+        &[
+            &PredefinedMenuItem::undo(handle, None)?,
+            &PredefinedMenuItem::redo(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::cut(handle, None)?,
+            &PredefinedMenuItem::copy(handle, None)?,
+            &PredefinedMenuItem::paste(handle, None)?,
+            &PredefinedMenuItem::select_all(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::hide(handle, None)?,
+            &PredefinedMenuItem::minimize(handle, None)?,
+            &PredefinedMenuItem::separator(handle)?,
+            &PredefinedMenuItem::quit(handle, None)?,
+        ],
+    )?;
+
+    Menu::with_items(handle, &[&app_menu])
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .menu(build_menu)
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // Desktop-only: there is no updater on mobile targets.
