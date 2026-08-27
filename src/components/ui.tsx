@@ -207,6 +207,8 @@ export function Modal({
   onClose,
   canSubmit = true,
   busy = false,
+  secondaryLabel,
+  onSecondary,
   children,
 }: {
   title: string;
@@ -215,8 +217,13 @@ export function Modal({
   onClose: () => void;
   canSubmit?: boolean;
   busy?: boolean;
+  /** When given, a second full-width action sits beside the primary one. */
+  secondaryLabel?: string;
+  onSecondary?: () => void;
   children: ReactNode;
 }) {
+  const hasSecondary = secondaryLabel !== undefined && onSecondary !== undefined;
+
   return (
     <Dialog.Root
       open
@@ -235,16 +242,34 @@ export function Modal({
               onSubmit();
             }}
           >
-            <Dialog.Title className="modal-title">{title}</Dialog.Title>
+            <div className="modal-head">
+              <Dialog.Title className="modal-title">{title}</Dialog.Title>
+              {/* Dismissal lives in the corner, so the footer is only for
+                  actions that do something. */}
+              <button
+                type="button"
+                className="modal-close"
+                onClick={onClose}
+                disabled={busy}
+                aria-label="Close"
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+
             {/* Only the body scrolls, so the buttons stay reachable however tall
                 the content gets. */}
             <div className="modal-body">{children}</div>
-            <div className="form-actions modal-actions">
-              <Button type="submit" variant="primary" disabled={!canSubmit || busy}>
+
+            <div className={`modal-actions${hasSecondary ? " has-two" : ""}`}>
+              {hasSecondary && (
+                <Button block onClick={onSecondary} disabled={busy}>
+                  {secondaryLabel}
+                </Button>
+              )}
+              <Button type="submit" variant="primary" block disabled={!canSubmit || busy}>
                 {submitLabel}
-              </Button>
-              <Button variant="quiet" onClick={onClose} disabled={busy}>
-                Cancel
               </Button>
             </div>
           </form>

@@ -19,7 +19,6 @@ import { currentMonth, monthEndExclusive, monthLabel, monthStart, shiftMonth } f
 import { renderInvoicePdf } from "../lib/invoicePdf";
 import { formatMinutes, formatMoney } from "../lib/money";
 import {
-  Button,
   CheckRow,
   DropdownField,
   Empty,
@@ -153,6 +152,8 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
         title={`Invoice ${issued.number} saved`}
         submitLabel={emailing ? "Opening mail…" : "Email to contacts"}
         onSubmit={() => void sendEmail(issued.id)}
+        secondaryLabel="Show in Finder"
+        onSecondary={() => void revealItemInDir(issued.filePath).catch(() => {})}
         onClose={onClose}
         canSubmit={!emailing}
         busy={emailing}
@@ -161,21 +162,17 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
           {issued.filePath}
         </p>
 
-        {sent !== null && (
-          <p className={sent.attached ? "ledger-sub" : "error"}>
-            {sent.attached
-              ? `Draft opened for ${sent.recipients.join(", ")} with the invoice attached.`
-              : `Draft opened for ${sent.recipients.join(
-                  ", ",
-                )}, but your mail app cannot be sent an attachment. The invoice is revealed in Finder — drag it in.`}
+        {/* A successful draft speaks for itself — the mail app is now in front.
+            Only the case where the file could not be attached needs saying,
+            since otherwise an invoice would be sent without it. */}
+        {sent !== null && !sent.attached && (
+          <p className="error">
+            Your mail app cannot be sent an attachment. The invoice is revealed in
+            Finder — drag it into the message.
           </p>
         )}
 
         <ErrorNote error={error} />
-
-        <Button variant="quiet" onClick={() => void revealItemInDir(issued.filePath).catch(() => {})}>
-          Show in Finder
-        </Button>
       </Modal>
     );
   }

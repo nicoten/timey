@@ -862,13 +862,47 @@ body {
 }
 
 .modal-actions {
+  display: grid;
   flex: 0 0 auto;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+/* Two actions share the width rather than stacking, which a short popover
+   cannot spare the rows for. */
+.modal-actions.has-two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.modal-head {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
 }
 
 .modal-title {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
+}
+
+.modal-close {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.modal-close:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--band);
 }
 
 /* --- segmented control (Radix ToggleGroup) -------------------------------- */
