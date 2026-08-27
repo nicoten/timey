@@ -10,9 +10,11 @@ import {
   type Project,
 } from "./lib/api";
 import { currentMonth, monthEndExclusive, monthStart, type MonthCursor } from "./lib/dates";
+import { useUpdates } from "./lib/useUpdates";
 import { DayPanel } from "./components/DayPanel";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { Button } from "./components/ui";
 import "./styles.css";
 
@@ -28,6 +30,8 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const updates = useUpdates();
 
   const loadMonth = useCallback(async (target: MonthCursor) => {
     setLoadingMonth(true);
@@ -100,6 +104,8 @@ export default function App() {
         )}
       </div>
 
+      <UpdateBanner state={updates.state} onInstall={updates.install} onDismiss={updates.dismiss} />
+
       <div className="workspace">
         <main className="sheet">
           {loadError !== null && (
@@ -126,6 +132,7 @@ export default function App() {
                 void loadMonth(cursor);
               }}
               onBack={() => setView("month")}
+              updates={updates}
             />
           )}
         </main>

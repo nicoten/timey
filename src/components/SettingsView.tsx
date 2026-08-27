@@ -18,6 +18,7 @@ import {
   type Project,
 } from "../lib/api";
 import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
+import type { Updates } from "../lib/useUpdates";
 import { Button, Empty, ErrorNote, Field, Select, TextInput } from "./ui";
 
 /** A constrained palette, so projects stay legible against the ledger. */
@@ -36,9 +37,10 @@ interface Props {
   projects: Project[];
   onChanged: () => void;
   onBack: () => void;
+  updates: Updates;
 }
 
-export function SettingsView({ clients, projects, onChanged, onBack }: Props) {
+export function SettingsView({ clients, projects, onChanged, onBack, updates }: Props) {
   return (
     <div className="settings">
       <header className="settings-head">
@@ -50,6 +52,7 @@ export function SettingsView({ clients, projects, onChanged, onBack }: Props) {
 
       <ClientSection clients={clients} onChanged={onChanged} />
       <ProjectSection clients={clients} projects={projects} onChanged={onChanged} />
+      <UpdateSection updates={updates} />
     </div>
   );
 }
@@ -580,6 +583,64 @@ function ProjectSection({
           )}
         </>
       )}
+    </section>
+  );
+}
+
+// --- updates ---------------------------------------------------------------
+
+function UpdateSection({ updates }: { updates: Updates }) {
+  const { state, version } = updates;
+
+  const message = (() => {
+    switch (state.status) {
+      case "checking":
+        return "Checking…";
+      case "available":
+        return `Version ${state.version} is ready to install.`;
+      case "downloading":
+        return "Downloading the update…";
+      case "installing":
+        return "Installing — the app will restart on its own.";
+      case "upToDate":
+        return "This is the latest version.";
+      case "unsupported":
+        return "Updates only work in the installed app, not in a browser.";
+      case "error":
+        return state.message;
+      default:
+        return null;
+    }
+  })();
+
+  const busy =
+    state.status === "checking" ||
+    state.status === "downloading" ||
+    state.status === "installing";
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Updates</h2>
+        <span className="eyebrow num">{version === null ? "" : `v${version}`}</span>
+      </div>
+      <p className="section-note">
+        timey checks once per launch and never installs anything without being asked.
+      </p>
+
+      <div className="form-actions">
+        <Button onClick={updates.check} disabled={busy}>
+          Check for updates
+        </Button>
+        {state.status === "available" && (
+          <Button variant="primary" onClick={updates.install}>
+            Update and restart
+          </Button>
+        )}
+        {message !== null && (
+          <span className={state.status === "error" ? "error" : "ledger-sub"}>{message}</span>
+        )}
+      </div>
     </section>
   );
 }

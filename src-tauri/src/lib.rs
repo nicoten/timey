@@ -15,6 +15,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // Desktop-only: there is no updater on mobile targets.
+            #[cfg(desktop)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
+
             let path = app.path().app_data_dir()?.join(DATABASE_FILE);
 
             // Blocking here is deliberate: the window should not appear until

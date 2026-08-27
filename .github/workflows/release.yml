@@ -1,0 +1,60 @@
+name: release
+
+# Pushing a version tag is the release action. The tag must match the version in
+# the manifests, or the updater will advertise the wrong one — use
+# `pnpm set-version` to keep them in step.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      # Needed to create the release and upload assets.
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # The data layer is verified before anything is published.
+      - run: pnpm test:rust
+        env:
+          SQLX_OFFLINE: true
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # src-tauri/.env points sqlx at a local dev.db that does not exist on a
+          # runner. Without this, the committed .sqlx cache is ignored and the
+          # build fails trying to reach a database.
+          SQLX_OFFLINE: true
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: timey ${{ github.ref_name }}
+          releaseBody: |
+            Installed copies of timey update themselves from this release.
+            To install for the first time, download the `.app.tar.gz` below.
+          releaseDraft: false
+          prerelease: false
+          args: --target aarch64-apple-darwin

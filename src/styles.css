@@ -96,7 +96,7 @@ body {
 
 .app {
   display: grid;
-  grid-template-rows: var(--rail-height) minmax(0, 1fr);
+  grid-template-rows: var(--rail-height) auto minmax(0, 1fr);
   height: 100%;
 }
 
@@ -274,7 +274,7 @@ body {
 .cell-head {
   position: relative;
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 6px;
 }
@@ -287,11 +287,10 @@ body {
 }
 
 .cell.is-today .cell-date {
-  padding: 0 4px;
-  margin-left: -4px;
   color: var(--card);
   background: var(--stamp);
-  border-radius: var(--radius);
+  border-radius: 2px;
+  box-shadow: 0 0 0 3px var(--stamp);
 }
 
 .cell-figures {
@@ -690,6 +689,44 @@ body {
   background: var(--band);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
+}
+
+/* --- update notice -------------------------------------------------------- */
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 18px;
+  font-size: 13px;
+  color: var(--ink);
+  background: rgb(var(--fill) / 0.16);
+  border-bottom: 1px solid var(--rule);
+}
+
+.notice-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.progress {
+  flex: 1;
+  min-width: 120px;
+  max-width: 260px;
+  height: 4px;
+  overflow: hidden;
+  background: var(--rule);
+  border-radius: 2px;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--fill-edge);
+  transition: width 160ms linear;
 }
 
 /* --- states --------------------------------------------------------------- */

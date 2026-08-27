@@ -104,3 +104,57 @@ pnpm db:prepare   # after every SQL change
 `src-tauri/.env` points sqlx at `dev.db` and is committed deliberately — it holds a
 local path, no secrets. To add a migration, put a new numbered file in
 `src-tauri/migrations/` and run `pnpm db:setup`.
+
+## Releasing and auto-update
+
+Installed copies check for a new version once per launch and never install
+anything without being asked. The check is silent when nothing is available, or
+when it fails — only an explicit check in **Settings → Updates** reports errors.
+
+### Cutting a release
+
+The app version lives in three manifests that must agree, because the updater
+compares the installed version against what the manifest advertises. Drift means
+either a missed release or one that is offered forever. One command sets all
+three:
+
+```sh
+pnpm set-version 0.2.0
+cargo check --manifest-path src-tauri/Cargo.toml   # refresh Cargo.lock
+git commit -am "Release v0.2.0"
+git tag v0.2.0
+git push --follow-tags
+```
+
+Pushing the tag is what publishes. `.github/workflows/release.yml` builds on a
+macOS runner for `aarch64-apple-darwin`, runs the Rust tests first, then creates
+the GitHub release with the signed bundle and a `latest.json` manifest.
+
+### How updates are trusted
+
+Update bundles are signed with a minisign keypair. The public half is in
+`src-tauri/tauri.conf.json`; the private half is **not in this repo** — it lives
+at `~/.tauri/timey.key` and in the `TAURI_SIGNING_PRIVATE_KEY` repository
+secret. The app refuses any bundle that does not verify against the public key,
+so the update channel does not depend on trusting GitHub.
+
+**Keep a backup of `~/.tauri/timey.key`.** Losing it means already-installed
+copies can never be updated again — a new key would produce bundles they reject,
+and the only way forward is reinstalling by hand.
+
+### macOS signing
+
+Builds are not signed with an Apple Developer ID or notarized. Updating a copy
+on your own machine works, because the updater writes the new bundle without a
+quarantine flag. Installing on **someone else's** Mac would show Gatekeeper
+warnings; clearing those needs a paid Apple Developer account and a notarization
+step in the workflow.
+
+### Endpoint
+
+`https://github.com/nicoten/timey/releases/latest/download/latest.json`
+
+GitHub redirects `/releases/latest/` to the newest published release, so the
+endpoint never changes. This requires the repository to stay public — release
+assets inherit repository visibility, and the updater fetches them
+unauthenticated.

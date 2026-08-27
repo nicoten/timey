@@ -28,3 +28,7 @@ thiserror = "2.0.20"
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread"] }
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-process = "2.3.1"
+tauri-plugin-updater = "2.10.1"
+

@@ -156,15 +156,7 @@ export function MonthView({
         })}
       </div>
 
-      {loading ? (
-        <p className="loading">Loading {monthLabel(cursor)}…</p>
-      ) : (
-        monthMinutes === 0 && (
-          <p className="loading">
-            Nothing logged in {monthLabel(cursor)} yet. Pick a day to add an entry.
-          </p>
-        )
-      )}
+      {loading && <p className="loading">Loading {monthLabel(cursor)}…</p>}
     </>
   );
 }
