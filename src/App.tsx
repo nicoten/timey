@@ -156,6 +156,16 @@ export default function App() {
             >
               <SettingsIcon />
             </Button>
+            {/* The popover no longer dismisses itself, so it needs a way out
+                that does not depend on knowing about Escape or the tray icon. */}
+            <Button
+              variant="quiet"
+              onClick={() => void getCurrentWindow().hide()}
+              aria-label="Close timey"
+              title="Close"
+            >
+              ✕
+            </Button>
           </span>
         </div>
 

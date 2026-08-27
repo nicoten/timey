@@ -6,7 +6,7 @@ pub mod validate;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager, PhysicalPosition, Rect, WebviewWindow, WindowEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, Rect, WebviewWindow};
 
 /// Filename inside the platform app-data directory. On macOS this resolves to
 /// `~/Library/Application Support/com.nicotejera.timey/timey.db`.
@@ -118,12 +118,10 @@ pub fn run() {
             QUIT => app.exit(0),
             _ => {}
         })
-        // A popover belongs to whatever is in front, so it closes on losing focus.
-        .on_window_event(|window, event| {
-            if let WindowEvent::Focused(false) = event {
-                let _ = window.hide();
-            }
-        })
+        // Deliberately no hide-on-blur. Any native dialog the app opens — the
+        // folder picker in particular — takes focus away from the popover, which
+        // would dismiss it and leave the dialog orphaned. Dismissal is explicit:
+        // the close button, Escape, or clicking the menu bar icon again.
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // No Dock icon and no menu bar: this is a menu bar accessory.
