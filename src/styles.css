@@ -26,8 +26,8 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
-  --rail-height: 46px;
-  --panel-width: 400px;
+  --rail-height: 42px;
+  --panel-width: 360px;
   --radius: 3px;
 
   color-scheme: light dark;
@@ -151,7 +151,7 @@ body {
 .sheet {
   min-width: 0;
   overflow: auto;
-  padding: 22px 24px 32px;
+  padding: 16px 18px 22px;
 }
 
 /* --- month header --------------------------------------------------------- */
@@ -159,11 +159,12 @@ body {
 .month-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  /* Month and figures sit on one line, centred against each other. */
+  align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding-bottom: 18px;
-  margin-bottom: 16px;
+  gap: 16px;
+  padding-bottom: 9px;
+  margin-bottom: 10px;
   border-bottom: 2px solid var(--rule);
 }
 
@@ -176,7 +177,7 @@ body {
 .month-title {
   min-width: 8.5ch;
   font-family: var(--mono);
-  font-size: 21px;
+  font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -185,17 +186,14 @@ body {
 
 .figures {
   display: flex;
-  gap: 30px;
-}
-
-.figure {
-  text-align: right;
+  align-items: center;
+  gap: 20px;
 }
 
 .figure-value {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 23px;
+  font-size: 17px;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
@@ -210,12 +208,12 @@ body {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   padding: 0 1px;
 }
 
 .weekdays > span {
-  padding-left: 10px;
+  padding-left: 9px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -240,8 +238,8 @@ body {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  min-height: 92px;
-  padding: 7px 9px;
+  min-height: 76px;
+  padding: 6px 8px;
   overflow: hidden;
   background: var(--card);
   border: 0;

@@ -92,16 +92,15 @@ export default function App() {
   return (
     <div className="app">
       {/*
-        With the native title bar hidden, this rail is the only chrome and doubles
-        as the window's drag handle. Tauri starts a drag only when the mousedown
-        target itself carries the attribute, so the Settings button still clicks.
-        The left cell is left empty for the traffic lights to sit over.
+        The native title bar is an overlay, so this rail is the window's drag
+        handle. "deep" matters: a bare data-tauri-drag-region drags only on a
+        direct hit, so the empty spacer below swallowed most drags. With "deep"
+        the whole subtree drags, and Tauri exempts buttons on its own, so
+        Settings still clicks. The left cell stays empty for the traffic lights.
       */}
-      <div className="rail" data-tauri-drag-region>
+      <div className="rail" data-tauri-drag-region="deep">
         <span />
-        <span className="wordmark" data-tauri-drag-region>
-          timey
-        </span>
+        <span className="wordmark">timey</span>
         <span className="rail-actions">
           {view === "month" ? (
             <Button variant="quiet" onClick={() => setView("settings")}>

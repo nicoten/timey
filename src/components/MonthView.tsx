@@ -19,7 +19,7 @@ import { Button } from "./ui";
 /** A full working day: the band reaches its tallest at this many minutes. */
 const FULL_DAY_MINUTES = 8 * 60;
 /** Percentage of cell height the band occupies at a full day, and at the minimum. */
-const BAND_MAX_PERCENT = 34;
+const BAND_MAX_PERCENT = 28;
 const BAND_MIN_PERCENT = 5;
 
 interface DayTotal {
@@ -81,19 +81,22 @@ export function MonthView({
           )}
         </div>
 
+        {/* No captions: the units say what these are. The labels stay as
+            accessible names so the figures are not two bare numbers to a
+            screen reader. */}
         <div className="figures">
-          <div className="figure">
-            <div className={`figure-value${monthMinutes === 0 ? " is-muted" : ""}`}>
-              {formatMinutes(monthMinutes)}
-            </div>
-            <div className="eyebrow">Tracked</div>
-          </div>
-          <div className="figure">
-            <div className={`figure-value${monthCents === 0 ? " is-muted" : ""}`}>
-              {formatMoney(monthCents)}
-            </div>
-            <div className="eyebrow">Earned</div>
-          </div>
+          <span
+            className={`figure-value${monthMinutes === 0 ? " is-muted" : ""}`}
+            aria-label={`${formatMinutes(monthMinutes)} tracked this month`}
+          >
+            {formatMinutes(monthMinutes)}
+          </span>
+          <span
+            className={`figure-value${monthCents === 0 ? " is-muted" : ""}`}
+            aria-label={`${formatMoney(monthCents)} earned this month`}
+          >
+            {formatMoney(monthCents)}
+          </span>
         </div>
       </header>
 
