@@ -28,7 +28,7 @@ pub struct EmailAction {
     pub file_path: String,
 }
 
-/// `Invoice 20 — Nicolas Tejera — August 2026`
+/// `Invoice 20 — Sam Rivera — August 2026`
 pub fn subject(number: i64, sender: &str, period_start: &str) -> String {
     format!("Invoice {number} — {sender} — {}", month_year(period_start))
 }
@@ -239,8 +239,8 @@ mod tests {
     #[test]
     fn subject_names_the_invoice_month_and_sender() {
         assert_eq!(
-            subject(20, "Nicolas Tejera", "2026-08-01"),
-            "Invoice 20 — Nicolas Tejera — August 2026"
+            subject(20, "Sam Rivera", "2026-08-01"),
+            "Invoice 20 — Sam Rivera — August 2026"
         );
         assert_eq!(
             subject(1, "A", "2025-12-01"),
@@ -251,8 +251,8 @@ mod tests {
     #[test]
     fn body_matches_the_requested_wording() {
         assert_eq!(
-            body("Nicolas Tejera", "2026-08-01"),
-            "Please find my invoice for 08/2026 attached.\n\nBest,\nNicolas Tejera"
+            body("Sam Rivera", "2026-08-01"),
+            "Please find my invoice for 08/2026 attached.\n\nBest,\nSam Rivera"
         );
     }
 

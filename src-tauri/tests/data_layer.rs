@@ -693,7 +693,7 @@ use timey_lib::db::settings;
 
 /// A client with a rated project and time logged in August 2026.
 async fn billable_setup(db: &Db) -> (i64, i64) {
-    let client = db::clients::create(db, "InData", Some("133448682".into()), Some("390 Riverside Drive\nNew York, NY 10025".into()))
+    let client = db::clients::create(db, "Northwind", Some("12-3456789".into()), Some("1 Example Way\nSpringfield, IL 62704".into()))
         .await
         .unwrap();
     let project = db::projects::create(db, client.id, "XQ1", "XQ", None, Some(15_500))
@@ -704,7 +704,7 @@ async fn billable_setup(db: &Db) -> (i64, i64) {
     db::entries::create(db, project.id, "Work", "2026-08-04T09:00", 480).await.unwrap();
     db::entries::create(db, project.id, "Work", "2026-08-05T09:00", 90).await.unwrap();
 
-    settings::set(db, settings::SENDER_NAME, "Nicolas Tejera").await.unwrap();
+    settings::set(db, settings::SENDER_NAME, "Sam Rivera").await.unwrap();
     (client.id, project.id)
 }
 
@@ -712,10 +712,10 @@ async fn billable_setup(db: &Db) -> (i64, i64) {
 async fn settings_round_trip_and_blank_removes() {
     let db = fresh_db().await;
 
-    settings::set(&db, "sender_name", "  Nicolas Tejera  ").await.unwrap();
+    settings::set(&db, "sender_name", "  Sam Rivera  ").await.unwrap();
     assert_eq!(
         settings::get(&db, "sender_name").await.unwrap().as_deref(),
-        Some("Nicolas Tejera"),
+        Some("Sam Rivera"),
         "stored values are trimmed"
     );
 
@@ -733,15 +733,15 @@ async fn settings_round_trip_and_blank_removes() {
 #[tokio::test]
 async fn clients_carry_billing_details() {
     let db = fresh_db().await;
-    let client = db::clients::create(&db, "InData", Some("133448682".into()), Some("390 Riverside Drive".into()))
+    let client = db::clients::create(&db, "Northwind", Some("12-3456789".into()), Some("1 Example Way".into()))
         .await
         .unwrap();
 
-    assert_eq!(client.ein.as_deref(), Some("133448682"));
-    assert_eq!(client.address.as_deref(), Some("390 Riverside Drive"));
+    assert_eq!(client.ein.as_deref(), Some("12-3456789"));
+    assert_eq!(client.address.as_deref(), Some("1 Example Way"));
 
     // Blank fields are stored as absent, not as empty strings.
-    let cleared = db::clients::update(&db, client.id, "InData", Some("  ".into()), None)
+    let cleared = db::clients::update(&db, client.id, "Northwind", Some("  ".into()), None)
         .await
         .unwrap();
     assert_eq!(cleared.ein, None);
@@ -794,8 +794,8 @@ async fn prepare_builds_the_document_from_the_reference_invoice() {
         .unwrap();
 
     assert_eq!(draft.number, 1, "the first invoice takes number 1");
-    assert_eq!(draft.sender_name, "Nicolas Tejera");
-    assert_eq!(draft.client.ein.as_deref(), Some("133448682"));
+    assert_eq!(draft.sender_name, "Sam Rivera");
+    assert_eq!(draft.client.ein.as_deref(), Some("12-3456789"));
     assert_eq!(draft.period_end_inclusive, "2026-08-31", "the document shows the last day billed");
     assert_eq!(draft.lines.len(), 1);
     assert_eq!(draft.lines[0].description, "[XQ1] XQ (08/01/2026 - 08/31/2026)");
@@ -803,7 +803,7 @@ async fn prepare_builds_the_document_from_the_reference_invoice() {
     assert_eq!(draft.lines[0].rate_cents, 15_500);
     assert_eq!(draft.lines[0].amount_cents, 271_250);
     assert_eq!(draft.total_cents, 271_250);
-    assert_eq!(draft.file_name, "invoice-0001-indata-2026-08.pdf");
+    assert_eq!(draft.file_name, "invoice-0001-northwind-2026-08.pdf");
 }
 
 #[tokio::test]

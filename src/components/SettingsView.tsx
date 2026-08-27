@@ -150,7 +150,7 @@ function InvoicingSection({
         <Field label="Your name (appears after “From”)">
           <TextInput
             value={senderName}
-            placeholder="Nicolas Tejera"
+            placeholder="Your full name"
             onChange={(event) => {
               setSenderName(event.currentTarget.value);
               setSaved(false);
@@ -356,7 +356,7 @@ function ClientDialog({
         <TextInput
           className="num"
           value={ein}
-          placeholder="133448682"
+          placeholder="12-3456789"
           onChange={(event) => setEin(event.currentTarget.value)}
         />
       </Field>
@@ -364,7 +364,7 @@ function ClientDialog({
       <Field label="Address">
         <TextArea
           value={address}
-          placeholder={"390 Riverside Drive\nNew York, NY 10025"}
+          placeholder={"Street address\nCity, State ZIP"}
           onChange={(event) => setAddress(event.currentTarget.value)}
         />
       </Field>

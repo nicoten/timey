@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn slugs_are_filename_safe() {
         assert_eq!(slug("Acme Industries"), "acme-industries");
-        assert_eq!(slug("InData"), "indata");
+        assert_eq!(slug("Northwind"), "northwind");
         assert_eq!(slug("Foo & Bar, Inc."), "foo-bar-inc");
         assert_eq!(slug("  spaced  out  "), "spaced-out");
     }
