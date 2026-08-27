@@ -64,6 +64,21 @@ Issued invoices are stored line by line rather than recomputed on demand. A rate
 change must not rewrite a document that has already been sent, and deleting a
 client that has been invoiced fails for the same reason.
 
+### Emailing an invoice
+
+After an invoice is saved, **Email to contacts** opens a draft addressed to every
+contact on that client, with a subject naming the invoice, month and sender, and
+the requested body.
+
+`mailto:` cannot carry an attachment — the parameter is non-standard and ignored
+or blocked everywhere — so attaching means scripting a specific client. When
+Apple Mail is the default, Timey drives it with AppleScript and the PDF is
+already attached; macOS asks once for permission to control Mail, which is why
+the build carries the `com.apple.security.automation.apple-events` entitlement
+(the hardened runtime blocks Apple Events without it). Any other default mail app
+gets a prefilled message with the PDF revealed in Finder to drag in, and the UI
+says so rather than implying the file went with it.
+
 The PDF is drawn with jsPDF in the frontend and written by Rust. jsPDF ships the
 Helvetica metrics needed to right-align the figure columns, which is the one
 thing a hand-rolled writer cannot do without reproducing a font's width tables.

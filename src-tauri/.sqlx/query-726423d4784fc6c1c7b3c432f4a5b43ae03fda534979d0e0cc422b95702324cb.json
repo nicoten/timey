@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT email AS \"email!\" FROM contacts WHERE client_id = ?1 ORDER BY lower(name)",
+  "describe": {
+    "columns": [
+      {
+        "name": "email!",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "726423d4784fc6c1c7b3c432f4a5b43ae03fda534979d0e0cc422b95702324cb"
+}

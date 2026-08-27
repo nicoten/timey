@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import {
   SETTING_INVOICE_FOLDER,
   SETTING_SENDER_NAME,
   hoursDecimal,
   invoiceCandidates,
+  invoiceEmail,
   invoiceIssue,
   invoicePrepare,
   type Client,
   type InvoiceCandidate,
+  type EmailAction,
   type IssuedInvoice,
   type Settings,
 } from "../lib/api";
@@ -17,6 +19,7 @@ import { currentMonth, monthEndExclusive, monthLabel, monthStart, shiftMonth } f
 import { renderInvoicePdf } from "../lib/invoicePdf";
 import { formatMinutes, formatMoney } from "../lib/money";
 import {
+  Button,
   CheckRow,
   DropdownField,
   Empty,
@@ -53,6 +56,8 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [issued, setIssued] = useState<IssuedInvoice | null>(null);
+  const [emailing, setEmailing] = useState(false);
+  const [sent, setSent] = useState<EmailAction | null>(null);
 
   const periodEnd = useMemo(() => {
     const [year, month] = periodStart.split("-").map(Number);
@@ -101,6 +106,26 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
     0,
   );
 
+  async function sendEmail(invoiceId: number) {
+    setEmailing(true);
+    setError(null);
+    try {
+      const action = await invoiceEmail(invoiceId);
+      setSent(action);
+
+      // Nothing was attached, so open the prefilled message and put the file
+      // somewhere it can be dragged from.
+      if (action.mailto !== null) {
+        await openUrl(action.mailto);
+        await revealItemInDir(action.filePath).catch(() => {});
+      }
+    } catch (caught) {
+      setError(caught);
+    } finally {
+      setEmailing(false);
+    }
+  }
+
   async function generate() {
     setBusy(true);
     setError(null);
@@ -126,13 +151,31 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
     return (
       <Modal
         title={`Invoice ${issued.number} saved`}
-        submitLabel="Show in Finder"
-        onSubmit={() => void revealItemInDir(issued.filePath).catch(() => {})}
+        submitLabel={emailing ? "Opening mail…" : "Email to contacts"}
+        onSubmit={() => void sendEmail(issued.id)}
         onClose={onClose}
+        canSubmit={!emailing}
+        busy={emailing}
       >
         <p className="ledger-sub" style={{ wordBreak: "break-all" }}>
           {issued.filePath}
         </p>
+
+        {sent !== null && (
+          <p className={sent.attached ? "ledger-sub" : "error"}>
+            {sent.attached
+              ? `Draft opened for ${sent.recipients.join(", ")} with the invoice attached.`
+              : `Draft opened for ${sent.recipients.join(
+                  ", ",
+                )}, but your mail app cannot be sent an attachment. The invoice is revealed in Finder — drag it in.`}
+          </p>
+        )}
+
+        <ErrorNote error={error} />
+
+        <Button variant="quiet" onClick={() => void revealItemInDir(issued.filePath).catch(() => {})}>
+          Show in Finder
+        </Button>
       </Modal>
     );
   }

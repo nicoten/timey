@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use tauri::State;
 
 use crate::db::{self, Db};
+use crate::mail::{self, EmailAction};
 use crate::error::AppResult;
 use crate::model::{
     Client, Contact, Entry, EntryDetail, InvoiceCandidate, InvoiceDraft, IssuedInvoice, Project,
@@ -221,4 +222,21 @@ pub async fn invoice_issue(
     pdf: Vec<u8>,
 ) -> AppResult<IssuedInvoice> {
     db::invoices::issue(&db, &draft, &pdf).await
+}
+
+/// Opens a mail draft for an issued invoice, addressed to the client's contacts.
+///
+/// Attaches the PDF when Apple Mail is the default; otherwise the returned
+/// `mailto` is what the caller should open, the file being unattached.
+#[tauri::command]
+pub async fn invoice_email(db: State<'_, Db>, invoice_id: i64) -> AppResult<EmailAction> {
+    let plan = db::invoices::email_plan(&db, invoice_id).await?;
+
+    mail::compose(
+        plan.number,
+        &plan.sender_name,
+        &plan.period_start,
+        &plan.file_path,
+        plan.recipients,
+    )
 }

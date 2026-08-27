@@ -10,5 +10,9 @@
   -->
   <key>LSUIElement</key>
   <true/>
+
+  <!-- Shown in the macOS prompt the first time Timey scripts Mail. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Timey opens a mail draft with your invoice attached.</string>
 </dict>
 </plist>

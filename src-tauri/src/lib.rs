@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod error;
+pub mod mail;
 pub mod model;
 pub mod validate;
 
@@ -195,6 +196,7 @@ pub fn run() {
             commands::invoice_candidates,
             commands::invoice_prepare,
             commands::invoice_issue,
+            commands::invoice_email,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

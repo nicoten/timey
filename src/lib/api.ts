@@ -370,3 +370,17 @@ export function invoiceIssue(draft: InvoiceDraft, pdf: Uint8Array): Promise<Issu
 export function hoursDecimal(minutes: number): string {
   return (minutes / 60).toFixed(2);
 }
+
+export interface EmailAction {
+  /** True when a draft opened with the PDF already attached. */
+  attached: boolean;
+  recipients: string[];
+  /** Present only when the caller must open it, the PDF being unattached. */
+  mailto: string | null;
+  filePath: string;
+}
+
+/** Opens a mail draft for an issued invoice, addressed to the client's contacts. */
+export function invoiceEmail(invoiceId: number): Promise<EmailAction> {
+  return invoke("invoice_email", { invoiceId });
+}

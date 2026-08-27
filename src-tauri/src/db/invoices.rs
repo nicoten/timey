@@ -164,6 +164,52 @@ pub async fn prepare(
     })
 }
 
+/// Everything the mail draft needs for an already-issued invoice.
+pub async fn email_plan(db: &Db, invoice_id: i64) -> AppResult<EmailPlan> {
+    let invoice = sqlx::query!(
+        r#"
+        SELECT number       AS "number!: i64",
+               client_id    AS "client_id!: i64",
+               period_start AS "period_start!",
+               file_path    AS "file_path!"
+        FROM invoices WHERE id = ?1
+        "#,
+        invoice_id
+    )
+    .fetch_optional(db)
+    .await?
+    .ok_or(AppError::NotFound { entity: "Invoice", id: invoice_id })?;
+
+    let sender_name = settings::require(db, settings::SENDER_NAME, "your name").await?;
+
+    let recipients = sqlx::query!(
+        r#"SELECT email AS "email!" FROM contacts WHERE client_id = ?1 ORDER BY lower(name)"#,
+        invoice.client_id
+    )
+    .fetch_all(db)
+    .await?
+    .into_iter()
+    .map(|row| row.email)
+    .collect();
+
+    Ok(EmailPlan {
+        number: invoice.number,
+        sender_name,
+        period_start: invoice.period_start,
+        file_path: invoice.file_path,
+        recipients,
+    })
+}
+
+/// The inputs to `mail::compose`, read back from a stored invoice.
+pub struct EmailPlan {
+    pub number: i64,
+    pub sender_name: String,
+    pub period_start: String,
+    pub file_path: String,
+    pub recipients: Vec<String>,
+}
+
 /// The next number in the sequence: one past the highest ever issued.
 pub async fn next_number(db: &Db) -> AppResult<i64> {
     let row = sqlx::query!(

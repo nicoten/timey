@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT number       AS \"number!: i64\",\n               client_id    AS \"client_id!: i64\",\n               period_start AS \"period_start!\",\n               file_path    AS \"file_path!\"\n        FROM invoices WHERE id = ?1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "number!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "client_id!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "period_start!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_path!",
+        "ordinal": 3,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c79180e104de78c56146d218c533e6376e065a8acb2170b8cb711f33a6f4c16c"
+}
