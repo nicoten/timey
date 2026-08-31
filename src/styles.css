@@ -254,7 +254,7 @@ body {
 .month-title {
   min-width: 8.5ch;
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -264,13 +264,16 @@ body {
 .figures {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
+  /* The two figures stay on the header's line: the month grid below is sized
+     for a single-line header, and a wrap pushes the last week out of view. */
+  white-space: nowrap;
 }
 
 .figure-value {
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
+  font-size: 15px;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
@@ -1187,7 +1190,7 @@ body {
   }
 
   .figures {
-    gap: 14px;
+    gap: 12px;
   }
 }
 

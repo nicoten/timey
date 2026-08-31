@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Timey",
-        "width": 420,
-        "height": 350,
+        "width": 460,
+        "height": 372,
         "label": "main",
         "decorations": false,
         "resizable": false,
