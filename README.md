@@ -2,6 +2,8 @@
 
 An extremely simple macOS menu bar time tracker built with [Tauri v2](https://tauri.app), React, and SQLite (data stays local).
 
+[**Download the latest release**](https://github.com/nicoten/timey/releases/latest) — v1.1.1, a `.dmg` for Apple silicon Macs.
+
 It lives in the menu bar as the grid of dots from its app icon, with no Dock icon and no window of its own: clicking the icon opens a popover anchored beneath it, and it dismisses when it loses focus. Right-clicking the icon gives Settings and Quit.
 
 The month reads as a shaded grid — one circle per day, deeper the more hours worked in that day — with the month's hours and earnings in the header and a single day's figures on hover.
