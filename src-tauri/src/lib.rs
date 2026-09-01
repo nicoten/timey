@@ -148,7 +148,10 @@ pub fn run() {
 
             let menu = tray_menu(app.handle())?;
             TrayIconBuilder::with_id("timey")
-                .icon(tauri::include_image!("./icons/tray-clock.png"))
+                // The app icon's grid, redrawn as a glyph: nine dots with the
+                // last an outline, which is the one mark that makes it this
+                // app rather than any grid.
+                .icon(tauri::include_image!("./icons/tray-grid.png"))
                 // Template images are recoloured by macOS to suit the menu bar.
                 .icon_as_template(true)
                 .menu(&menu)
