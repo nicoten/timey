@@ -24,12 +24,14 @@ import {
   type Project,
   type Settings,
 } from "../lib/api";
+import { autostartEnabled, autostartUnavailable, setAutostart } from "../lib/autostart";
 import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
 import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
 import type { Updates } from "../lib/useUpdates";
 import {
   ArchiveIcon,
   Button,
+  CheckRow,
   DeleteIcon,
   DropdownField,
   EditIcon,
@@ -103,6 +105,7 @@ export function SettingsView({
       <ProjectSection clients={clients} projects={projects} onChanged={onChanged} />
       <InvoicingSection settings={settings} onChanged={onSettingsChanged} />
       <AppearanceSection theme={theme} onThemeChange={onThemeChange} />
+      <StartupSection />
       <UpdateSection updates={updates} />
     </div>
   );
@@ -214,6 +217,68 @@ function AppearanceSection({
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>
+    </section>
+  );
+}
+
+// --- startup ---------------------------------------------------------------
+
+type StartupState =
+  | { status: "loading" }
+  | { status: "ready"; enabled: boolean }
+  | { status: "unsupported" };
+
+function StartupSection() {
+  const [state, setState] = useState<StartupState>({ status: "loading" });
+  const [error, setError] = useState<unknown>(null);
+
+  useEffect(() => {
+    autostartEnabled()
+      .then((enabled) => setState({ status: "ready", enabled }))
+      .catch((caught) => {
+        if (autostartUnavailable(caught)) {
+          setState({ status: "unsupported" });
+        } else {
+          setState({ status: "ready", enabled: false });
+          setError(caught);
+        }
+      });
+  }, []);
+
+  async function toggle(enabled: boolean) {
+    setError(null);
+    // Optimistic, so the box moves as soon as it is clicked; a failure puts
+    // it back and says why.
+    setState({ status: "ready", enabled });
+    try {
+      await setAutostart(enabled);
+    } catch (caught) {
+      setState({ status: "ready", enabled: !enabled });
+      setError(caught);
+    }
+  }
+
+  return (
+    <section className="section">
+      <div className="section-head">
+        <h2>Startup</h2>
+      </div>
+
+      {state.status === "unsupported" ? (
+        <span className="ledger-sub">
+          Launch at login only works in the installed app, not in a browser.
+        </span>
+      ) : (
+        <CheckRow
+          checked={state.status === "ready" && state.enabled}
+          disabled={state.status === "loading"}
+          onChange={(next) => void toggle(next)}
+        >
+          <span>Open Timey at login</span>
+        </CheckRow>
+      )}
+
+      <ErrorNote error={error} />
     </section>
   );
 }

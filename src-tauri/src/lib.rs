@@ -135,6 +135,10 @@ pub fn run() {
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
                 app.handle().plugin(tauri_plugin_process::init())?;
                 app.handle().plugin(tauri_plugin_dialog::init())?;
+                // A Launch Agent rather than an AppleScript login item: the
+                // agent needs no automation permission and works unsigned.
+                app.handle()
+                    .plugin(tauri_plugin_autostart::Builder::new().build())?;
             }
 
             let path = app.path().app_data_dir()?.join(DATABASE_FILE);
