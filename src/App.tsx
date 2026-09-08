@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Tooltip } from "radix-ui";
@@ -14,8 +14,9 @@ import {
   type Project,
   type Settings,
 } from "./lib/api";
-import { currentMonth, monthEndExclusive, monthStart, type MonthCursor } from "./lib/dates";
+import { isSameMonth, monthEndExclusive, monthOf, monthStart, type MonthCursor } from "./lib/dates";
 import { applyThemeChoice, loadThemeChoice, type ThemeChoice } from "./lib/theme";
+import { useToday } from "./lib/useToday";
 import { useUpdates } from "./lib/useUpdates";
 import { DayPanel } from "./components/DayPanel";
 import { InvoiceDialog } from "./components/InvoiceDialog";
@@ -29,7 +30,8 @@ type View = "month" | "settings";
 
 export default function App() {
   const [view, setView] = useState<View>("month");
-  const [cursor, setCursor] = useState<MonthCursor>(currentMonth);
+  const today = useToday();
+  const [cursor, setCursor] = useState<MonthCursor>(() => monthOf(today));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const [entries, setEntries] = useState<EntryDetail[]>([]);
@@ -82,6 +84,20 @@ export default function App() {
   useEffect(() => {
     void loadMonth(cursor);
   }, [cursor, loadMonth]);
+
+  // When the calendar was left on the current month and a new month has since
+  // begun, follow it: reopening the popover in October should not show
+  // September just because that was "this month" at launch.
+  const previousToday = useRef(today);
+  useEffect(() => {
+    const before = monthOf(previousToday.current);
+    previousToday.current = today;
+    const now = monthOf(today);
+    if (!isSameMonth(before, now) && isSameMonth(cursor, before)) {
+      setCursor(now);
+      setSelectedDay(null);
+    }
+  }, [today, cursor]);
 
   useEffect(() => {
     void loadCatalog();
@@ -178,6 +194,7 @@ export default function App() {
 
             {view === "month" ? (
               <MonthView
+                today={today}
                 cursor={cursor}
                 onCursorChange={changeMonth}
                 entries={entries}

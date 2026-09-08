@@ -39,6 +39,11 @@ export function currentMonth(): MonthCursor {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
+/** `"2026-09-08"` -> September 2026. */
+export function monthOf(date: string): MonthCursor {
+  return { year: Number(date.slice(0, 4)), month: Number(date.slice(5, 7)) };
+}
+
 export function shiftMonth(cursor: MonthCursor, delta: number): MonthCursor {
   const zeroBased = cursor.month - 1 + delta;
   return {

@@ -3,14 +3,13 @@ import { useMemo } from "react";
 import type { EntryDetail } from "../lib/api";
 import {
   WEEKDAY_LABELS,
-  currentMonth,
   dayLabel,
   dayOfMonth,
   isSameMonth,
   monthGrid,
   monthLabel,
+  monthOf,
   shiftMonth,
-  todayIso,
   type MonthCursor,
 } from "../lib/dates";
 import { intensityLevel } from "../lib/intensity";
@@ -23,6 +22,8 @@ interface DayTotal {
 }
 
 interface Props {
+  /** `YYYY-MM-DD`; owned by App so it can be refreshed while the page lives on. */
+  today: string;
   cursor: MonthCursor;
   onCursorChange: (cursor: MonthCursor) => void;
   entries: EntryDetail[];
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export function MonthView({
+  today,
   cursor,
   onCursorChange,
   entries,
@@ -55,8 +57,7 @@ export function MonthView({
   const monthMinutes = entries.reduce((sum, entry) => sum + entry.durationMinutes, 0);
   const monthCents = sumEarnedCents(entries);
   const cells = monthGrid(cursor);
-  const today = todayIso();
-  const onCurrentMonth = isSameMonth(cursor, currentMonth());
+  const onCurrentMonth = isSameMonth(cursor, monthOf(today));
 
   return (
     <>
@@ -78,7 +79,7 @@ export function MonthView({
             ›
           </Button>
           {!onCurrentMonth && (
-            <Button variant="quiet" onClick={() => onCursorChange(currentMonth())}>
+            <Button variant="quiet" onClick={() => onCursorChange(monthOf(today))}>
               Today
             </Button>
           )}
