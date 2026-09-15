@@ -6,7 +6,7 @@ pub mod model;
 pub mod validate;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, PhysicalPosition, Rect, WebviewWindow};
 
 /// Filename inside the platform app-data directory. On macOS this resolves to
@@ -64,6 +64,24 @@ fn tray_menu<R: tauri::Runtime>(handle: &tauri::AppHandle<R>) -> tauri::Result<M
             &MenuItem::with_id(handle, QUIT, "Quit Timey", true, None::<&str>)?,
         ],
     )
+}
+
+/// Shows the tray menu, attaching it only for as long as it takes to show.
+///
+/// The menu is deliberately not left attached to the tray icon. macOS 27
+/// stopped delivering clicks to the view `tray-icon` overlays on the status
+/// item whenever a menu is attached, so AppKit opens the menu itself on *any*
+/// click and `show_menu_on_left_click(false)` never gets a say, which left the
+/// popover unreachable. Attaching the menu only around the call that shows it
+/// keeps the icon clickable the rest of the time.
+///
+/// This mirrors the upstream fix in tauri-apps/tray-icon#365, which is merged
+/// but unreleased; once it ships, this can go back to `TrayIconBuilder::menu`.
+fn show_tray_menu<R: tauri::Runtime>(tray: &TrayIcon<R>, menu: Menu<R>) {
+    let _ = tray.set_menu(Some(menu));
+    // Runs the menu's tracking loop, returning once it has been dismissed.
+    let _ = tray.with_inner_tray_icon(|tray| tray.show_menu());
+    let _ = tray.set_menu(None::<Menu<R>>);
 }
 
 /// Places the popover centred under the menu bar icon, kept on screen.
@@ -158,20 +176,33 @@ pub fn run() {
                 .icon(tauri::include_image!("./icons/tray-grid.png"))
                 // Template images are recoloured by macOS to suit the menu bar.
                 .icon_as_template(true)
-                .menu(&menu)
-                // Left click toggles the popover; the menu is right-click only.
-                .show_menu_on_left_click(false)
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
+                // No `menu` here, and so no `show_menu_on_left_click` either:
+                // an attached menu costs us the click events altogether. Both
+                // buttons are handled below instead. See `show_tray_menu`.
+                .on_tray_icon_event(move |tray, event| {
+                    let TrayIconEvent::Click {
+                        button,
+                        button_state,
                         rect,
                         ..
                     } = event
-                    {
-                        if let Some(window) = tray.app_handle().get_webview_window(POPOVER) {
-                            toggle_popover(&window, rect);
+                    else {
+                        return;
+                    };
+
+                    match (button, button_state) {
+                        // On release, so a click-and-drag off the icon leaves
+                        // the popover alone.
+                        (MouseButton::Left, MouseButtonState::Up) => {
+                            if let Some(window) = tray.app_handle().get_webview_window(POPOVER) {
+                                toggle_popover(&window, rect);
+                            }
                         }
+                        // On press, which is when menus open everywhere else.
+                        (MouseButton::Right, MouseButtonState::Down) => {
+                            show_tray_menu(tray, menu.clone());
+                        }
+                        _ => {}
                     }
                 })
                 .build(app)?;
