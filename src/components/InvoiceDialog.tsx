@@ -17,7 +17,7 @@ import {
 } from "../lib/api";
 import { currentMonth, monthEndExclusive, monthLabel, monthStart, shiftMonth } from "../lib/dates";
 import { renderInvoicePdf } from "../lib/invoicePdf";
-import { formatMinutes, formatMoney } from "../lib/money";
+import { DEFAULT_CURRENCY, formatMinutes, formatMoney } from "../lib/money";
 import {
   CheckRow,
   DropdownField,
@@ -29,6 +29,28 @@ import {
 
 /** How far back the month picker offers. */
 const MONTHS_OFFERED = 18;
+
+/** Timed minutes cannot be billed without a rate; fixed prices always can. */
+function isBillable(candidate: InvoiceCandidate): boolean {
+  return candidate.minutes === 0 || candidate.hourlyRateCents !== null;
+}
+
+/** What a project's lines will come to, matching the backend's rounding. */
+function candidateCents(candidate: InvoiceCandidate): number {
+  const timed = Math.round(((candidate.hourlyRateCents ?? 0) * candidate.minutes) / 60);
+  return timed + candidate.fixedCents;
+}
+
+/** One line for the project's time, plus one per fixed-price entry. */
+function candidateLines(candidate: InvoiceCandidate): number {
+  return (candidate.minutes > 0 ? 1 : 0) + candidate.fixedCount;
+}
+
+/** `17.50h · $2,712.50`, or just the money when there is no time. */
+function candidateSummary(candidate: InvoiceCandidate, currency: string): string {
+  const money = formatMoney(candidateCents(candidate), currency);
+  return candidate.minutes > 0 ? `${hoursDecimal(candidate.minutes)}h · ${money}` : money;
+}
 
 interface Props {
   clients: Client[];
@@ -63,6 +85,9 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
     return monthEndExclusive({ year, month });
   }, [periodStart]);
 
+  const currency =
+    billable.find((client) => String(client.id) === clientId)?.currency ?? DEFAULT_CURRENCY;
+
   const missingSetup = [
     settings[SETTING_SENDER_NAME] ? null : "your name",
     settings[SETTING_INVOICE_FOLDER] ? null : "an invoice folder",
@@ -83,9 +108,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
         setCandidates(found);
         setSelected(
           new Set(
-            found
-              .filter((candidate) => candidate.hourlyRateCents !== null)
-              .map((candidate) => candidate.projectId),
+            found.filter(isBillable).map((candidate) => candidate.projectId),
           ),
         );
       })
@@ -99,11 +122,9 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
   }, [clientId, periodStart, periodEnd]);
 
   const chosen = (candidates ?? []).filter((candidate) => selected.has(candidate.projectId));
-  const totalCents = chosen.reduce(
-    (sum, candidate) =>
-      sum + Math.round(((candidate.hourlyRateCents ?? 0) * candidate.minutes) / 60),
-    0,
-  );
+  const totalCents = chosen.reduce((sum, candidate) => sum + candidateCents(candidate), 0);
+  const lineCount = chosen.reduce((sum, candidate) => sum + candidateLines(candidate), 0);
+  const chosenMinutes = chosen.reduce((sum, candidate) => sum + candidate.minutes, 0);
 
   async function sendEmail(invoiceId: number) {
     setEmailing(true);
@@ -232,11 +253,11 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
         {candidates === null ? (
           <p className="loading">Looking for tracked time…</p>
         ) : candidates.length === 0 ? (
-          <p className="loading">No time logged for this client that month.</p>
+          <p className="loading">Nothing logged for this client that month.</p>
         ) : (
           <div className="ledger">
             {candidates.map((candidate) => {
-              const unbillable = candidate.hourlyRateCents === null;
+              const unbillable = !isBillable(candidate);
               return (
                 <CheckRow
                   key={candidate.projectId}
@@ -255,13 +276,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
                     <span className="ledger-code">{candidate.code}</span> {candidate.name}
                   </span>
                   <span className="num">
-                    {unbillable
-                      ? "no rate"
-                      : `${hoursDecimal(candidate.minutes)}h · ${formatMoney(
-                          Math.round(
-                            ((candidate.hourlyRateCents ?? 0) * candidate.minutes) / 60,
-                          ),
-                        )}`}
+                    {unbillable ? "no rate" : candidateSummary(candidate, currency)}
                   </span>
                 </CheckRow>
               );
@@ -273,10 +288,10 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
       {chosen.length > 0 && (
         <div className="invoice-total">
           <span className="eyebrow">
-            {chosen.length} {chosen.length === 1 ? "line" : "lines"} ·{" "}
-            {formatMinutes(chosen.reduce((sum, item) => sum + item.minutes, 0))}
+            {lineCount} {lineCount === 1 ? "line" : "lines"}
+            {chosenMinutes > 0 && ` · ${formatMinutes(chosenMinutes)}`}
           </span>
-          <span className="figure-value is-earned">{formatMoney(totalCents)}</span>
+          <span className="figure-value is-earned">{formatMoney(totalCents, currency)}</span>
         </div>
       )}
 

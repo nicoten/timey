@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n        INSERT INTO entries (project_id, name, started_at, duration_minutes)\n        VALUES (?1, ?2, ?3, ?4)\n        RETURNING id AS \"id!\", project_id, name, started_at, duration_minutes,\n                  created_at, updated_at\n        ",
+  "query": "\n        SELECT id AS \"id!\", project_id, name, started_at, duration_minutes,\n               amount_cents, created_at, updated_at\n        FROM entries WHERE id = ?1\n        ",
   "describe": {
     "columns": [
       {
@@ -29,28 +29,34 @@
         "type_info": "Integer"
       },
       {
-        "name": "created_at",
+        "name": "amount_cents",
         "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 6,
         "type_info": "Text"
       },
       {
         "name": "updated_at",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 1
     },
     "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
       true,
-      false,
-      false,
-      false,
-      false,
       false,
       false
     ]
   },
-  "hash": "9a5cf645446bb208b978b1e50f5ac63ab70b1949675e1e1350ea0d09fd04271c"
+  "hash": "f38bd0ca6a0f16271f2150acedd541ffb9feebaa2f2685a48b5a34500ef199c6"
 }

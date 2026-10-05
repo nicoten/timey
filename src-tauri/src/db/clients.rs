@@ -16,7 +16,7 @@ where
     let client = sqlx::query_as!(
         Client,
         r#"
-        SELECT id AS "id!", name, ein, address, archived_at, created_at
+        SELECT id AS "id!", name, ein, address, currency, archived_at, created_at
         FROM clients WHERE id = ?1
         "#,
         id
@@ -31,7 +31,7 @@ pub async fn list(db: &Db, include_archived: bool) -> AppResult<Vec<Client>> {
     let clients = sqlx::query_as!(
         Client,
         r#"
-        SELECT id AS "id!", name, ein, address, archived_at, created_at
+        SELECT id AS "id!", name, ein, address, currency, archived_at, created_at
         FROM clients
         WHERE ?1 OR archived_at IS NULL
         ORDER BY lower(name)
@@ -55,20 +55,23 @@ pub async fn create(
     name: &str,
     ein: Option<String>,
     address: Option<String>,
+    currency: &str,
 ) -> AppResult<Client> {
     let name = validate::non_empty("Client name", name)?;
     let ein = validate::optional_text(ein);
     let address = validate::optional_text(address);
+    let currency = validate::currency(currency)?;
 
     let client = sqlx::query_as!(
         Client,
         r#"
-        INSERT INTO clients (name, ein, address) VALUES (?1, ?2, ?3)
-        RETURNING id AS "id!", name, ein, address, archived_at, created_at
+        INSERT INTO clients (name, ein, address, currency) VALUES (?1, ?2, ?3, ?4)
+        RETURNING id AS "id!", name, ein, address, currency, archived_at, created_at
         "#,
         name,
         ein,
-        address
+        address,
+        currency
     )
     .fetch_one(db)
     .await?;
@@ -82,19 +85,22 @@ pub async fn update(
     name: &str,
     ein: Option<String>,
     address: Option<String>,
+    currency: &str,
 ) -> AppResult<Client> {
     let name = validate::non_empty("Client name", name)?;
     let ein = validate::optional_text(ein);
     let address = validate::optional_text(address);
+    let currency = validate::currency(currency)?;
 
     let mut tx = db.begin().await?;
 
     let affected = sqlx::query!(
-        "UPDATE clients SET name = ?2, ein = ?3, address = ?4 WHERE id = ?1",
+        "UPDATE clients SET name = ?2, ein = ?3, address = ?4, currency = ?5 WHERE id = ?1",
         id,
         name,
         ein,
-        address
+        address,
+        currency
     )
     .execute(&mut *tx)
     .await?

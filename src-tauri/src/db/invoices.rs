@@ -38,10 +38,10 @@ fn slug(value: &str) -> String {
     out.trim_matches('-').to_string()
 }
 
-/// Every project of this client with billable minutes in `[from, to)`.
+/// Every project of this client with entries in `[from, to)`.
 ///
-/// Projects without a rate are included so the picker can show why they cannot
-/// be billed, rather than silently omitting time that was tracked.
+/// Projects without a rate are included so the picker can show why their time
+/// cannot be billed, rather than silently omitting time that was tracked.
 pub async fn candidates(
     db: &Db,
     client_id: i64,
@@ -57,7 +57,9 @@ pub async fn candidates(
                p.code              AS "code!",
                p.name              AS "name!",
                CAST(sum(e.duration_minutes) AS INTEGER) AS "minutes!: i64",
-               p.hourly_rate_cents AS "hourly_rate_cents"
+               p.hourly_rate_cents AS "hourly_rate_cents",
+               CAST(coalesce(sum(e.amount_cents), 0) AS INTEGER) AS "fixed_cents!: i64",
+               CAST(count(e.amount_cents) AS INTEGER) AS "fixed_count!: i64"
         FROM entries e
         JOIN projects p ON p.id = e.project_id
         WHERE p.client_id = ?1
@@ -81,7 +83,41 @@ pub async fn candidates(
             name: row.name,
             minutes: row.minutes,
             hourly_rate_cents: row.hourly_rate_cents,
+            fixed_cents: row.fixed_cents,
+            fixed_count: row.fixed_count,
         })
+        .collect())
+}
+
+/// One project's fixed-price entries in `[from, to)`, each to become a line.
+async fn fixed_entries(
+    db: &Db,
+    project_id: i64,
+    from: &str,
+    to: &str,
+) -> AppResult<Vec<(String, String, i64)>> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT name                     AS "name!",
+               substr(started_at, 1, 10) AS "day!: String",
+               amount_cents             AS "amount_cents!: i64"
+        FROM entries
+        WHERE project_id = ?1
+          AND amount_cents IS NOT NULL
+          AND started_at >= ?2
+          AND started_at <  ?3
+        ORDER BY started_at, id
+        "#,
+        project_id,
+        from,
+        to
+    )
+    .fetch_all(db)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|row| (row.name, row.day, row.amount_cents))
         .collect())
 }
 
@@ -114,31 +150,47 @@ pub async fn prepare(
             continue;
         }
 
-        let rate_cents = candidate.hourly_rate_cents.ok_or_else(|| {
-            AppError::validation(format!(
-                "{} has no hourly rate, so it cannot be invoiced. Add one in Settings.",
-                candidate.code
-            ))
-        })?;
+        if candidate.minutes > 0 {
+            let rate_cents = candidate.hourly_rate_cents.ok_or_else(|| {
+                AppError::validation(format!(
+                    "{} has no hourly rate, so its time cannot be invoiced. Add one in Settings.",
+                    candidate.code
+                ))
+            })?;
 
-        lines.push(InvoiceLine {
-            project_id: candidate.project_id,
-            description: format!(
-                "[{}] {} ({} - {})",
-                candidate.code,
-                candidate.name,
-                us_date(&period_start),
-                us_date(&period_end_inclusive)
-            ),
-            minutes: candidate.minutes,
-            rate_cents,
-            amount_cents: line_amount_cents(rate_cents, candidate.minutes),
-        });
+            lines.push(InvoiceLine {
+                project_id: candidate.project_id,
+                description: format!(
+                    "[{}] {} ({} - {})",
+                    candidate.code,
+                    candidate.name,
+                    us_date(&period_start),
+                    us_date(&period_end_inclusive)
+                ),
+                minutes: Some(candidate.minutes),
+                rate_cents,
+                amount_cents: line_amount_cents(rate_cents, candidate.minutes),
+            });
+        }
+
+        if candidate.fixed_count > 0 {
+            for (name, day, amount_cents) in
+                fixed_entries(db, candidate.project_id, &period_start, &period_end).await?
+            {
+                lines.push(InvoiceLine {
+                    project_id: candidate.project_id,
+                    description: format!("[{}] {} ({})", candidate.code, name, us_date(&day)),
+                    minutes: None,
+                    rate_cents: amount_cents,
+                    amount_cents,
+                });
+            }
+        }
     }
 
     if lines.is_empty() {
         return Err(AppError::validation(
-            "No time was logged against those projects in that period.",
+            "Nothing was logged against those projects in that period.",
         ));
     }
 
@@ -240,8 +292,9 @@ pub async fn issue(db: &Db, draft: &InvoiceDraft, pdf: &[u8]) -> AppResult<Issue
     let invoice_id = sqlx::query!(
         r#"
         INSERT INTO invoices
-            (number, client_id, issue_date, period_start, period_end, total_cents, file_path)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            (number, client_id, issue_date, period_start, period_end, total_cents, file_path,
+             currency)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         "#,
         draft.number,
         draft.client.id,
@@ -249,7 +302,8 @@ pub async fn issue(db: &Db, draft: &InvoiceDraft, pdf: &[u8]) -> AppResult<Issue
         draft.period_start,
         draft.period_end,
         draft.total_cents,
-        path_text
+        path_text,
+        draft.client.currency
     )
     .execute(&mut *tx)
     .await

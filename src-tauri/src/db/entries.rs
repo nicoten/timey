@@ -30,6 +30,8 @@ pub async fn list_in_range(
                p.name              AS "project_name!",
                c.id                AS "client_id!",
                c.name              AS "client_name!",
+               c.currency          AS "currency!",
+               e.amount_cents      AS "amount_cents",
                p.hourly_rate_cents AS "hourly_rate_cents"
         FROM entries e
         JOIN projects p ON p.id = e.project_id
@@ -59,7 +61,7 @@ where
         Entry,
         r#"
         SELECT id AS "id!", project_id, name, started_at, duration_minutes,
-               created_at, updated_at
+               amount_cents, created_at, updated_at
         FROM entries WHERE id = ?1
         "#,
         id
@@ -83,22 +85,49 @@ pub async fn create(
     started_at: &str,
     duration_minutes: i64,
 ) -> AppResult<Entry> {
-    let name = validate::non_empty("Entry name", name)?;
     let started_at = validate::started_at(started_at)?;
     let duration_minutes = validate::duration_minutes(duration_minutes)?;
+    insert(db, project_id, name, &started_at, duration_minutes, None).await
+}
+
+/// An entry billed at an agreed amount rather than by the hour. It has a day
+/// but no time: stored at midnight with a zero duration, so it adds to what a
+/// day earned without adding to its hours.
+pub async fn create_fixed(
+    db: &Db,
+    project_id: i64,
+    name: &str,
+    date: &str,
+    amount_cents: i64,
+) -> AppResult<Entry> {
+    let started_at = validate::fixed_day(date)?;
+    let amount_cents = validate::amount_cents(amount_cents)?;
+    insert(db, project_id, name, &started_at, 0, Some(amount_cents)).await
+}
+
+async fn insert(
+    db: &Db,
+    project_id: i64,
+    name: &str,
+    started_at: &str,
+    duration_minutes: i64,
+    amount_cents: Option<i64>,
+) -> AppResult<Entry> {
+    let name = validate::non_empty("Entry name", name)?;
 
     let entry = sqlx::query_as!(
         Entry,
         r#"
-        INSERT INTO entries (project_id, name, started_at, duration_minutes)
-        VALUES (?1, ?2, ?3, ?4)
+        INSERT INTO entries (project_id, name, started_at, duration_minutes, amount_cents)
+        VALUES (?1, ?2, ?3, ?4, ?5)
         RETURNING id AS "id!", project_id, name, started_at, duration_minutes,
-                  created_at, updated_at
+                  amount_cents, created_at, updated_at
         "#,
         project_id,
         name,
         started_at,
-        duration_minutes
+        duration_minutes,
+        amount_cents
     )
     .fetch_one(db)
     .await?;
@@ -106,7 +135,8 @@ pub async fn create(
     Ok(entry)
 }
 
-/// A full replacement, including moving the entry to a different project.
+/// A full replacement, including moving the entry to a different project. A
+/// fixed-price entry updated this way becomes a timed one.
 pub async fn update(
     db: &Db,
     id: i64,
@@ -115,9 +145,35 @@ pub async fn update(
     started_at: &str,
     duration_minutes: i64,
 ) -> AppResult<Entry> {
-    let name = validate::non_empty("Entry name", name)?;
     let started_at = validate::started_at(started_at)?;
     let duration_minutes = validate::duration_minutes(duration_minutes)?;
+    replace(db, id, project_id, name, &started_at, duration_minutes, None).await
+}
+
+/// As `update`, leaving a fixed-price entry; a timed one becomes fixed.
+pub async fn update_fixed(
+    db: &Db,
+    id: i64,
+    project_id: i64,
+    name: &str,
+    date: &str,
+    amount_cents: i64,
+) -> AppResult<Entry> {
+    let started_at = validate::fixed_day(date)?;
+    let amount_cents = validate::amount_cents(amount_cents)?;
+    replace(db, id, project_id, name, &started_at, 0, Some(amount_cents)).await
+}
+
+async fn replace(
+    db: &Db,
+    id: i64,
+    project_id: i64,
+    name: &str,
+    started_at: &str,
+    duration_minutes: i64,
+    amount_cents: Option<i64>,
+) -> AppResult<Entry> {
+    let name = validate::non_empty("Entry name", name)?;
 
     let mut tx = db.begin().await?;
 
@@ -128,6 +184,7 @@ pub async fn update(
             name = ?3,
             started_at = ?4,
             duration_minutes = ?5,
+            amount_cents = ?6,
             updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
         WHERE id = ?1
         "#,
@@ -135,7 +192,8 @@ pub async fn update(
         project_id,
         name,
         started_at,
-        duration_minutes
+        duration_minutes,
+        amount_cents
     )
     .execute(&mut *tx)
     .await?

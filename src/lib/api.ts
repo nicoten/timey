@@ -17,6 +17,8 @@ export interface Client {
   ein: string | null;
   /** One freeform block, newline-separated, reproduced verbatim on invoices. */
   address: string | null;
+  /** ISO 4217 code: what every amount for this client is in. */
+  currency: string;
   /** UTC instant; non-null means archived. */
   archivedAt: string | null;
   createdAt: string;
@@ -49,7 +51,10 @@ export interface Entry {
   name: string;
   /** Local wall-clock, `YYYY-MM-DDTHH:MM`, on the 15-minute grid. */
   startedAt: string;
+  /** Zero for a fixed-price entry. */
   durationMinutes: number;
+  /** Integer cents. Non-null means a fixed-price entry, billed at this amount. */
+  amountCents: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +72,10 @@ export interface EntryDetail {
   projectName: string;
   clientId: number;
   clientName: string;
+  /** The client's currency, which the entry's money is in. */
+  currency: string;
+  /** Non-null means a fixed-price entry; see `Entry.amountCents`. */
+  amountCents: number | null;
   /** The project's rate at read time, for computing what the entry earned. */
   hourlyRateCents: number | null;
 }
@@ -129,11 +138,13 @@ export function clientCreate(input: {
   name: string;
   ein?: string | null;
   address?: string | null;
+  currency: string;
 }): Promise<Client> {
   return invoke("client_create", {
     name: input.name,
     ein: input.ein ?? null,
     address: input.address ?? null,
+    currency: input.currency,
   });
 }
 
@@ -142,12 +153,14 @@ export function clientUpdate(input: {
   name: string;
   ein?: string | null;
   address?: string | null;
+  currency: string;
 }): Promise<Client> {
   return invoke("client_update", {
     id: input.id,
     name: input.name,
     ein: input.ein ?? null,
     address: input.address ?? null,
+    currency: input.currency,
   });
 }
 
@@ -262,6 +275,28 @@ export function entryUpdate(input: {
   return invoke("entry_update", input);
 }
 
+/** A fixed-price entry: a day and an amount, no time. */
+export function entryCreateFixed(input: {
+  projectId: number;
+  name: string;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  amountCents: number;
+}): Promise<Entry> {
+  return invoke("entry_create_fixed", input);
+}
+
+/** Replaces an entry with a fixed-price one, whichever kind it was. */
+export function entryUpdateFixed(input: {
+  id: number;
+  projectId: number;
+  name: string;
+  date: string;
+  amountCents: number;
+}): Promise<Entry> {
+  return invoke("entry_update_fixed", input);
+}
+
 export function entryDelete(id: number): Promise<void> {
   return invoke("entry_delete", { id });
 }
@@ -294,15 +329,20 @@ export interface InvoiceCandidate {
   projectId: number;
   code: string;
   name: string;
+  /** Timed minutes only; fixed-price entries contribute none. */
   minutes: number;
-  /** `null` means the project has no rate, so it cannot be billed. */
+  /** `null` means the project has no rate, so its timed minutes cannot be billed. */
   hourlyRateCents: number | null;
+  /** The fixed-price entries in the period: their sum, and how many lines they add. */
+  fixedCents: number;
+  fixedCount: number;
 }
 
 export interface InvoiceLine {
   projectId: number;
   description: string;
-  minutes: number;
+  /** `null` for a fixed-price line: a quantity of one at `rateCents`. */
+  minutes: number | null;
   rateCents: number;
   amountCents: number;
 }

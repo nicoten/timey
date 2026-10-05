@@ -26,8 +26,9 @@ pub async fn client_create(
     name: String,
     ein: Option<String>,
     address: Option<String>,
+    currency: String,
 ) -> AppResult<Client> {
-    db::clients::create(&db, &name, ein, address).await
+    db::clients::create(&db, &name, ein, address, &currency).await
 }
 
 #[tauri::command]
@@ -37,8 +38,9 @@ pub async fn client_update(
     name: String,
     ein: Option<String>,
     address: Option<String>,
+    currency: String,
 ) -> AppResult<Client> {
-    db::clients::update(&db, id, &name, ein, address).await
+    db::clients::update(&db, id, &name, ein, address, &currency).await
 }
 
 #[tauri::command]
@@ -159,6 +161,31 @@ pub async fn entry_update(
     duration_minutes: i64,
 ) -> AppResult<Entry> {
     db::entries::update(&db, id, project_id, &name, &started_at, duration_minutes).await
+}
+
+/// A fixed-price entry: a day and an amount, no time.
+#[tauri::command]
+pub async fn entry_create_fixed(
+    db: State<'_, Db>,
+    project_id: i64,
+    name: String,
+    date: String,
+    amount_cents: i64,
+) -> AppResult<Entry> {
+    db::entries::create_fixed(&db, project_id, &name, &date, amount_cents).await
+}
+
+/// Replaces an entry with a fixed-price one, whichever kind it was.
+#[tauri::command]
+pub async fn entry_update_fixed(
+    db: State<'_, Db>,
+    id: i64,
+    project_id: i64,
+    name: String,
+    date: String,
+    amount_cents: i64,
+) -> AppResult<Entry> {
+    db::entries::update_fixed(&db, id, project_id, &name, &date, amount_cents).await
 }
 
 #[tauri::command]

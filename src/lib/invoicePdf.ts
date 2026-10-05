@@ -51,6 +51,7 @@ export function renderInvoicePdf(draft: InvoiceDraft): Uint8Array {
   const capacity = (top: number) =>
     Math.max(1, Math.floor((ROWS_BOTTOM - TOTALS_SPACE - top - ROW_HEIGHT) / ROW_HEIGHT));
 
+  const currency = draft.client.currency;
   const pages = paginate(draft.lines, capacity(TABLE_TOP_FIRST), capacity(TABLE_TOP_LATER));
 
   pages.forEach((lines, index) => {
@@ -59,7 +60,7 @@ export function renderInvoicePdf(draft: InvoiceDraft): Uint8Array {
     const top = index === 0 ? TABLE_TOP_FIRST : TABLE_TOP_LATER;
     if (index === 0) drawHeader(doc, draft);
 
-    const tableBottom = drawTable(doc, lines, top);
+    const tableBottom = drawTable(doc, lines, top, currency);
 
     // The amount due belongs on the page that closes the invoice.
     if (index === pages.length - 1) {
@@ -185,7 +186,7 @@ function labelledBlock(
 }
 
 /** Draws the header row and the given lines; returns the y of the closing rule. */
-function drawTable(doc: jsPDF, lines: InvoiceLine[], top: number): number {
+function drawTable(doc: jsPDF, lines: InvoiceLine[], top: number, currency: string): number {
   const headerBaseline = top + 14;
   const firstRowTop = top + 24;
 
@@ -210,11 +211,13 @@ function drawTable(doc: jsPDF, lines: InvoiceLine[], top: number): number {
     doc.setFontSize(11);
     doc.setTextColor(...INK);
     doc.text(line.description, LEFT + 4, baseline);
-    doc.text(hoursDecimal(line.minutes), QUANTITY_RIGHT, baseline, { align: "right" });
-    doc.text(formatMoney(line.rateCents), UNIT_RIGHT, baseline, { align: "right" });
+    // A fixed-price line is one of a thing, not a number of hours.
+    const quantity = line.minutes === null ? "1" : hoursDecimal(line.minutes);
+    doc.text(quantity, QUANTITY_RIGHT, baseline, { align: "right" });
+    doc.text(formatMoney(line.rateCents, currency), UNIT_RIGHT, baseline, { align: "right" });
 
     doc.setFont("helvetica", "bold");
-    doc.text(formatMoney(line.amountCents), AMOUNT_RIGHT, baseline, { align: "right" });
+    doc.text(formatMoney(line.amountCents, currency), AMOUNT_RIGHT, baseline, { align: "right" });
   });
 
   const bottom = firstRowTop + lines.length * ROW_HEIGHT;
@@ -230,7 +233,7 @@ function drawTable(doc: jsPDF, lines: InvoiceLine[], top: number): number {
 
 function drawTotal(doc: jsPDF, draft: InvoiceDraft, tableBottom: number): void {
   const baseline = tableBottom + 30;
-  const amount = formatMoney(draft.totalCents);
+  const amount = formatMoney(draft.totalCents, draft.client.currency);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);

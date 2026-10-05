@@ -110,6 +110,43 @@ pub fn started_at(value: &str) -> AppResult<String> {
     Ok(trimmed.to_string())
 }
 
+/// The currencies a client can be billed in.
+pub const CURRENCIES: [&str; 2] = ["USD", "EUR"];
+
+/// An ISO 4217 code from `CURRENCIES`, case-insensitively.
+pub fn currency(value: &str) -> AppResult<String> {
+    let code = value.trim().to_uppercase();
+    if !CURRENCIES.contains(&code.as_str()) {
+        return Err(AppError::validation(format!(
+            "`{}` is not a supported currency. Use {}.",
+            value.trim(),
+            CURRENCIES.join(" or ")
+        )));
+    }
+    Ok(code)
+}
+
+/// A fixed-price entry's day, `YYYY-MM-DD`, returned as the midnight start it is
+/// stored under.
+pub fn fixed_day(value: &str) -> AppResult<String> {
+    let trimmed = value.trim();
+    if trimmed.len() != 10 {
+        return Err(AppError::validation(format!(
+            "`{trimmed}` is not a valid date. Expected YYYY-MM-DD."
+        )));
+    }
+    started_at(&format!("{trimmed}T00:00"))
+        .map_err(|_| AppError::validation(format!("`{trimmed}` is not a valid date.")))
+}
+
+/// A fixed price: whole cents, more than nothing.
+pub fn amount_cents(value: i64) -> AppResult<i64> {
+    if value <= 0 {
+        return Err(AppError::validation("A fixed price must be greater than zero."));
+    }
+    Ok(value)
+}
+
 /// A range bound for queries: either `YYYY-MM-DD` or a full start time. Both
 /// compare correctly against stored values because the format sorts lexically.
 pub fn date_bound(field: &str, value: &str) -> AppResult<String> {
@@ -250,6 +287,30 @@ mod tests {
         ] {
             assert!(started_at(bad).is_err(), "{bad:?} should be rejected");
         }
+    }
+
+    #[test]
+    fn fixed_day_is_a_date_stored_at_midnight() {
+        assert_eq!(fixed_day(" 2026-08-27 ").unwrap(), "2026-08-27T00:00");
+        for bad in ["2026-02-30", "2026-08-27T09:00", "27/08/2026", ""] {
+            assert!(fixed_day(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn currency_is_normalized_and_limited() {
+        assert_eq!(currency(" eur ").unwrap(), "EUR");
+        assert_eq!(currency("USD").unwrap(), "USD");
+        for bad in ["", "GBP", "dollars"] {
+            assert!(currency(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn amounts_must_be_positive() {
+        assert_eq!(amount_cents(50_000).unwrap(), 50_000);
+        assert!(amount_cents(0).is_err());
+        assert!(amount_cents(-100).is_err());
     }
 
     #[test]

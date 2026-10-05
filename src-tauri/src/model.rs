@@ -12,6 +12,8 @@ pub struct Client {
     pub ein: Option<String>,
     /// One freeform block, newline-separated, reproduced verbatim on invoices.
     pub address: Option<String>,
+    /// ISO 4217 code: what every amount for this client is in.
+    pub currency: String,
     /// UTC instant, `Z`-suffixed. Non-null means archived.
     pub archived_at: Option<String>,
     pub created_at: String,
@@ -50,7 +52,11 @@ pub struct Entry {
     pub name: String,
     /// Local wall-clock, `YYYY-MM-DDTHH:MM`, on the 15-minute grid.
     pub started_at: String,
+    /// Zero for a fixed-price entry.
     pub duration_minutes: i64,
+    /// Integer cents. Present means a fixed-price entry, billed at this amount
+    /// rather than by the hour.
+    pub amount_cents: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -71,6 +77,10 @@ pub struct EntryDetail {
     pub project_name: String,
     pub client_id: i64,
     pub client_name: String,
+    /// The client's currency, which the entry's money is in.
+    pub currency: String,
+    /// Present means a fixed-price entry; see `Entry::amount_cents`.
+    pub amount_cents: Option<i64>,
     /// The project's rate at read time, for computing what the entry earned.
     pub hourly_rate_cents: Option<i64>,
 }
@@ -84,9 +94,14 @@ pub struct InvoiceCandidate {
     pub project_id: i64,
     pub code: String,
     pub name: String,
+    /// Timed minutes only; fixed-price entries contribute none.
     pub minutes: i64,
-    /// `None` means the project has no rate, so it cannot be billed.
+    /// `None` means the project has no rate, so its timed minutes cannot be billed.
     pub hourly_rate_cents: Option<i64>,
+    /// The fixed-price entries in the period: their sum, and how many lines
+    /// they will add.
+    pub fixed_cents: i64,
+    pub fixed_count: i64,
 }
 
 /// One line of an invoice, as it will be printed and stored.
@@ -95,7 +110,9 @@ pub struct InvoiceCandidate {
 pub struct InvoiceLine {
     pub project_id: i64,
     pub description: String,
-    pub minutes: i64,
+    /// `None` for a fixed-price line, which bills a quantity of one at
+    /// `rate_cents`.
+    pub minutes: Option<i64>,
     pub rate_cents: i64,
     pub amount_cents: i64,
 }

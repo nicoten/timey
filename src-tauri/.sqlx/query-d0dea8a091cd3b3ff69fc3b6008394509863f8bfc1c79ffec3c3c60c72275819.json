@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT name                     AS \"name!\",\n               substr(started_at, 1, 10) AS \"day!: String\",\n               amount_cents             AS \"amount_cents!: i64\"\n        FROM entries\n        WHERE project_id = ?1\n          AND amount_cents IS NOT NULL\n          AND started_at >= ?2\n          AND started_at <  ?3\n        ORDER BY started_at, id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "name!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "day!: String",
+        "ordinal": 1,
+        "type_info": "Null"
+      },
+      {
+        "name": "amount_cents!: i64",
+        "ordinal": 2,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      null,
+      true
+    ]
+  },
+  "hash": "d0dea8a091cd3b3ff69fc3b6008394509863f8bfc1c79ffec3c3c60c72275819"
+}

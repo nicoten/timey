@@ -227,6 +227,8 @@ pub fn run() {
             commands::entries_list,
             commands::entry_create,
             commands::entry_update,
+            commands::entry_create_fixed,
+            commands::entry_update_fixed,
             commands::entry_delete,
             commands::entries_daily_totals,
             commands::settings_all,

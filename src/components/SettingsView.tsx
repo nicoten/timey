@@ -25,7 +25,13 @@ import {
   type Settings,
 } from "../lib/api";
 import { autostartEnabled, autostartUnavailable, setAutostart } from "../lib/autostart";
-import { centsToRateInput, formatMoney, parseRateToCents } from "../lib/money";
+import {
+  centsToRateInput,
+  CURRENCIES,
+  DEFAULT_CURRENCY,
+  formatMoney,
+  parseRateToCents,
+} from "../lib/money";
 import { THEME_CHOICES, type ThemeChoice } from "../lib/theme";
 import type { Updates } from "../lib/useUpdates";
 import {
@@ -385,6 +391,7 @@ function ClientDialog({
   const [name, setName] = useState(client?.name ?? "");
   const [ein, setEin] = useState(client?.ein ?? "");
   const [address, setAddress] = useState(client?.address ?? "");
+  const [currency, setCurrency] = useState<string>(client?.currency ?? DEFAULT_CURRENCY);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -393,9 +400,9 @@ function ClientDialog({
     setError(null);
     try {
       if (client === null) {
-        await clientCreate({ name, ein, address });
+        await clientCreate({ name, ein, address, currency });
       } else {
-        await clientUpdate({ id: client.id, name, ein, address });
+        await clientUpdate({ id: client.id, name, ein, address, currency });
       }
       onSaved();
     } catch (caught) {
@@ -429,6 +436,14 @@ function ClientDialog({
           onChange={(event) => setEin(event.currentTarget.value)}
         />
       </Field>
+      {/* Rates and fixed prices for this client's projects are all in this
+          currency; changing it relabels them rather than converting them. */}
+      <DropdownField
+        label="Currency"
+        value={currency}
+        onChange={setCurrency}
+        options={CURRENCIES.map((code) => ({ value: code, label: code }))}
+      />
       {/* Freeform: an invoice reproduces these lines exactly as typed. */}
       <Field label="Address">
         <TextArea
@@ -459,6 +474,7 @@ function ClientRow({
       <div className="ledger-row">
         <div className="ledger-main">
           <span className="ledger-name">{client.name}</span>
+          <span className="ledger-sub">{client.currency}</span>
           {client.archivedAt !== null && <span className="tag">Archived</span>}
         </div>
         <div className="ledger-actions">
@@ -694,7 +710,10 @@ function ProjectSection({
                 <span className="ledger-sub">
                   {clientsById.get(project.clientId)?.name ?? "—"}
                   {project.hourlyRateCents !== null &&
-                    ` · ${formatMoney(project.hourlyRateCents)}/h`}
+                    ` · ${formatMoney(
+                      project.hourlyRateCents,
+                      clientsById.get(project.clientId)?.currency,
+                    )}/h`}
                 </span>
                 {project.archivedAt !== null && <span className="tag">Archived</span>}
               </div>
@@ -767,6 +786,8 @@ function ProjectDialog({
   const [color, setColor] = useState(project?.color ?? NO_COLOR);
   const [rate, setRate] = useState(centsToRateInput(project?.hourlyRateCents ?? null));
   const [error, setError] = useState<unknown>(null);
+  const currency =
+    clients.find((client) => String(client.id) === clientId)?.currency ?? DEFAULT_CURRENCY;
   const [busy, setBusy] = useState(false);
 
   async function submit() {
@@ -834,7 +855,7 @@ function ProjectDialog({
       </div>
 
       <div className="field-pair">
-        <Field label="Hourly rate (USD)">
+        <Field label={`Hourly rate (${currency})`}>
           <TextInput
             className="num"
             value={rate}

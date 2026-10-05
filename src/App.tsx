@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Tooltip } from "radix-ui";
+import { ToggleGroup, Tooltip } from "radix-ui";
 
 import {
   clientsList,
@@ -15,10 +15,11 @@ import {
   type Settings,
 } from "./lib/api";
 import { isSameMonth, monthEndExclusive, monthOf, monthStart, type MonthCursor } from "./lib/dates";
+import { loadMonthMode, MONTH_MODES, saveMonthMode, type MonthMode } from "./lib/monthMode";
 import { applyThemeChoice, loadThemeChoice, type ThemeChoice } from "./lib/theme";
 import { useToday } from "./lib/useToday";
 import { useUpdates } from "./lib/useUpdates";
-import { DayPanel } from "./components/DayPanel";
+import { DayPanel, type EntryFocus } from "./components/DayPanel";
 import { InvoiceDialog } from "./components/InvoiceDialog";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
@@ -33,6 +34,8 @@ export default function App() {
   const today = useToday();
   const [cursor, setCursor] = useState<MonthCursor>(() => monthOf(today));
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [entryFocus, setEntryFocus] = useState<EntryFocus | null>(null);
+  const [monthMode, setMonthMode] = useState<MonthMode>(loadMonthMode);
 
   const [entries, setEntries] = useState<EntryDetail[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -157,6 +160,27 @@ export default function App() {
               part: the glyph only appears on hover, as it does in a title bar. */}
           <CloseDot onClick={() => void getCurrentWindow().hide()} />
           <span className="titlebar-name">Timey</span>
+          {view === "month" && (
+            <ToggleGroup.Root
+              className="segmented is-compact"
+              type="single"
+              value={monthMode}
+              aria-label="Show the month as"
+              onValueChange={(next) => {
+                // Radix reports "" when the active item is pressed again; ignore
+                // it so there is always exactly one selection.
+                if (next === "") return;
+                setMonthMode(next as MonthMode);
+                saveMonthMode(next as MonthMode);
+              }}
+            >
+              {MONTH_MODES.map((mode) => (
+                <ToggleGroup.Item key={mode.value} className="segmented-item" value={mode.value}>
+                  {mode.label}
+                </ToggleGroup.Item>
+              ))}
+            </ToggleGroup.Root>
+          )}
           <span className="titlebar-actions">
             <Button
               variant="quiet"
@@ -194,13 +218,21 @@ export default function App() {
 
             {view === "month" ? (
               <MonthView
+                mode={monthMode}
                 today={today}
                 cursor={cursor}
                 onCursorChange={changeMonth}
                 entries={entries}
                 loading={loadingMonth}
                 selectedDay={selectedDay}
-                onSelectDay={setSelectedDay}
+                onSelectDay={(day) => {
+                  setEntryFocus(null);
+                  setSelectedDay(day);
+                }}
+                onSelectEntry={(entry) => {
+                  setSelectedDay(entry.startedAt.slice(0, 10));
+                  setEntryFocus({ entryId: entry.id });
+                }}
               />
             ) : (
               <SettingsView
@@ -223,6 +255,7 @@ export default function App() {
           {view === "month" && selectedDay !== null && (
             <DayPanel
               date={selectedDay}
+              focus={entryFocus}
               entries={entries}
               projects={liveProjects}
               clients={clients}

@@ -113,6 +113,15 @@ export function dayLabel(date: string): string {
   return `${weekday}, ${day} ${MONTH_NAMES[month - 1]}`;
 }
 
+/** `"Thu 27"`, for a table column where the month is already known. */
+export function shortDayLabel(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    weekday: "short",
+  });
+  return `${weekday} ${day}`;
+}
+
 export function dayOfMonth(date: string): number {
   return Number(date.slice(8, 10));
 }

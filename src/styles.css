@@ -286,6 +286,89 @@ body {
   color: var(--ink-3);
 }
 
+/* --- the month as tables ------------------------------------------------- */
+
+.month-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.month-table th {
+  padding: 2px 4px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.month-table td {
+  padding: 6px 4px;
+  color: var(--ink);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.month-table .is-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Captions stay in the sans face whatever the column holds. */
+.month-table th.is-num {
+  font-family: inherit;
+}
+
+/* Two figures side by side need more air than a figure beside text. */
+.month-table td.is-num + td.is-num {
+  padding-left: 12px;
+}
+
+.month-table .is-date {
+  font-family: var(--mono);
+  color: var(--ink-2);
+}
+
+/* A client name gives way before the figures do. */
+.month-table td.is-clip {
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Takes whatever width is left, truncating rather than wrapping. */
+.month-table td.is-fill {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.month-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.month-table tr.is-clickable:hover,
+.month-table tr.is-selected {
+  background: var(--band);
+}
+
+.cell-button {
+  padding: 0;
+  line-height: inherit;
+  vertical-align: baseline;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
 /* --- the month as shaded days --------------------------------------------- */
 
 .weekdays,
@@ -1004,6 +1087,21 @@ body {
 .segmented-item[data-state="on"] {
   color: #f7faf4;
   background: var(--fill-edge);
+}
+
+/* Small enough to sit in the title bar beside the app name. */
+.segmented.is-compact .segmented-item {
+  padding: 2px 9px;
+  font-size: 11px;
+}
+
+/* Spanning its container, the items sharing the width equally. */
+.segmented.is-block {
+  display: flex;
+}
+
+.segmented.is-block .segmented-item {
+  flex: 1;
 }
 
 /* --- settings ------------------------------------------------------------- */
