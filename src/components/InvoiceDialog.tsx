@@ -100,6 +100,18 @@ function monthsBetween(from: string, through: string): string[] {
   return months;
 }
 
+/** Selection is per project per month, so work billed in one month can be
+ * left out while the same project's other months go on the invoice. */
+function pairKey(start: string, projectId: number): string {
+  return `${start}|${projectId}`;
+}
+
+/** Checked, unchecked, or a dash when the boxes it stands for disagree. */
+function tristate(keys: string[], selected: Set<string>): boolean | "mixed" {
+  const on = keys.filter((key) => selected.has(key)).length;
+  return on === 0 ? false : on === keys.length ? true : "mixed";
+}
+
 /** One project's candidates summed across months. */
 function combine(candidates: InvoiceCandidate[]): InvoiceCandidate {
   return candidates.reduce((sum, candidate) => ({
@@ -115,6 +127,8 @@ interface MonthPlan {
   start: string;
   billed: Map<number, string[]>;
   earlier: IssuedInvoiceSummary[];
+  /** Every billable project with work that month. */
+  billable: InvoiceCandidate[];
   included: InvoiceCandidate[];
 }
 
@@ -163,7 +177,8 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
   useEffect(() => {
     setIssuedBefore([]);
   }, [clientId]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  /** Picked `pairKey`s. */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   /** Candidates per month start, for every month in the range. */
   const [byMonth, setByMonth] = useState<Map<string, InvoiceCandidate[]> | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -173,8 +188,6 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
   const [emailing, setEmailing] = useState<number | null>(null);
   /** Drafts opened, by invoice id. */
   const [sent, setSent] = useState<Map<number, EmailAction>>(new Map());
-  /** Asking before a second invoice for a period that already has one. */
-  const [confirmingRepeat, setConfirmingRepeat] = useState(false);
 
   const client = billable.find((candidate) => String(candidate.id) === clientId);
   const currency = client?.currency ?? DEFAULT_CURRENCY;
@@ -202,15 +215,15 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
         const loaded = new Map(months.map((start, index) => [start, found[index]]));
         setIssuedBefore(issued);
         setByMonth(loaded);
-        // Work already on an invoice for its month starts unchecked. A single
-        // month can still be picked, for entries added after that invoice went
-        // out; across several months, billed months are always left out.
-        const unbilled = new Set<number>();
+        // Work already on an invoice for its month starts unchecked, but can
+        // still be picked: entries may have been added after it went out, or
+        // the earlier invoice may be one to replace.
+        const unbilled = new Set<string>();
         for (const [start, candidates] of loaded) {
           const billed = billedProjects(issued, start, endOf(start));
           for (const candidate of candidates) {
             if (isBillable(candidate) && !billed.has(candidate.projectId)) {
-              unbilled.add(candidate.projectId);
+              unbilled.add(pairKey(start, candidate.projectId));
             }
           }
         }
@@ -226,36 +239,45 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
   }, [clientId, months]);
 
   const plans: MonthPlan[] = months.map((start) => {
-    const billed = billedProjects(issuedBefore, start, endOf(start));
-    const included = (byMonth?.get(start) ?? []).filter(
-      (candidate) =>
-        selected.has(candidate.projectId) &&
-        isBillable(candidate) &&
-        (!batch || !billed.has(candidate.projectId)),
-    );
-    return { start, billed, earlier: overlapping(issuedBefore, start, endOf(start)), included };
+    const billable = (byMonth?.get(start) ?? []).filter(isBillable);
+    return {
+      start,
+      billed: billedProjects(issuedBefore, start, endOf(start)),
+      earlier: overlapping(issuedBefore, start, endOf(start)),
+      billable,
+      included: billable.filter((candidate) => selected.has(pairKey(start, candidate.projectId))),
+    };
   });
   const toIssue = plans.filter((plan) => plan.included.length > 0);
 
-  /** Every project with work in the range, summed over the months it would bill. */
+  /** Every project with work in the range: its pairs, and what the picked ones come to. */
   const projects = useMemo(() => {
-    const grouped = new Map<number, { all: InvoiceCandidate[]; billable: InvoiceCandidate[] }>();
+    const grouped = new Map<number, { all: InvoiceCandidate[]; keys: string[]; billedOn: string[] }>();
     for (const [start, candidates] of byMonth ?? []) {
       const billed = billedProjects(issuedBefore, start, endOf(start));
       for (const candidate of candidates) {
-        const entry = grouped.get(candidate.projectId) ?? { all: [], billable: [] };
+        const entry = grouped.get(candidate.projectId) ?? { all: [], keys: [], billedOn: [] };
         entry.all.push(candidate);
-        if (!batch || !billed.has(candidate.projectId)) entry.billable.push(candidate);
+        entry.keys.push(pairKey(start, candidate.projectId));
+        entry.billedOn.push(...(billed.get(candidate.projectId) ?? []));
         grouped.set(candidate.projectId, entry);
       }
     }
     return [...grouped.values()]
-      .map(({ all, billable }) => ({
-        candidate: combine(billable.length > 0 ? billable : all),
-        alreadyBilled: billable.length === 0,
-      }))
-      .sort((a, b) => a.candidate.code.toLowerCase().localeCompare(b.candidate.code.toLowerCase()));
-  }, [byMonth, issuedBefore, batch]);
+      .map(({ all, keys, billedOn }) => ({ all, keys, billedOn: [...new Set(billedOn)] }))
+      .sort((a, b) => a.all[0].code.toLowerCase().localeCompare(b.all[0].code.toLowerCase()));
+  }, [byMonth, issuedBefore]);
+
+  function toggle(keys: string[], checked: boolean) {
+    setSelected((previous) => {
+      const next = new Set(previous);
+      for (const key of keys) {
+        if (checked) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+  }
 
   const chosen = toIssue.flatMap((plan) => plan.included);
   const totalCents = chosen.reduce((sum, candidate) => sum + candidateCents(candidate), 0);
@@ -268,7 +290,6 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
   }
 
   const singleEarlier = batch ? [] : plans[0]?.earlier ?? [];
-  const singleBilled = batch ? new Map<number, string[]>() : plans[0]?.billed ?? new Map();
 
   async function sendEmail(invoiceId: number) {
     setEmailing(invoiceId);
@@ -306,7 +327,6 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
       // document and the number in its record are the same value.
       const pdfs = drafts.map(renderInvoicePdf);
       setIssued(await invoiceIssueMany(drafts, pdfs));
-      setConfirmingRepeat(false);
       onIssued();
     } catch (caught) {
       setError(caught);
@@ -315,32 +335,13 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
     }
   }
 
+  /** A single month stays a single month; a range keeps its end unless overtaken. */
   function changeStart(start: string) {
+    // Radix's hidden form select can report "" when its options change under
+    // it; no option has an empty value, so that is never a real choice.
+    if (start === "") return;
     setPeriodStart(start);
-    if (periodThrough < start) setPeriodThrough(start);
-  }
-
-  if (confirmingRepeat) {
-    const labels = singleEarlier.map((invoice) => invoice.label).join(" and ");
-    return (
-      <Modal
-        title="Invoice this month again?"
-        submitLabel={busy ? "Generating…" : "Generate anyway"}
-        onSubmit={() => void generate()}
-        secondaryLabel="Go back"
-        onSecondary={() => setConfirmingRepeat(false)}
-        onClose={onClose}
-        canSubmit={!busy}
-        busy={busy}
-      >
-        <p className="invoice-warning" role="alert">
-          {monthLabel(monthOf(periodStart))} is already covered by invoice {labels}. A new invoice
-          takes the next number and bills every entry of the selected projects in that month,
-          including any already on an earlier invoice.
-        </p>
-        <ErrorNote error={error} />
-      </Modal>
-    );
+    if (periodThrough === periodStart || periodThrough < start) setPeriodThrough(start);
   }
 
   if (issued !== null && issued.length === 1) {
@@ -446,7 +447,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
     <Modal
       title={batch ? "New invoices" : "New invoice"}
       submitLabel={submitLabel}
-      onSubmit={() => (singleEarlier.length > 0 ? setConfirmingRepeat(true) : void generate())}
+      onSubmit={() => void generate()}
       onClose={onClose}
       canSubmit={toIssue.length > 0 && !busy}
       busy={busy}
@@ -467,7 +468,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
         <Dropdown
           ariaLabel="Through month"
           value={periodThrough}
-          onChange={setPeriodThrough}
+          onChange={(through) => through !== "" && setPeriodThrough(through)}
           options={monthOptions.filter((option) => option.value >= periodStart)}
         />
       </SplitField>
@@ -475,9 +476,9 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
       {singleEarlier.map((invoice) => (
         <div key={invoice.id} className="invoice-existing" role="status">
           <span>
-            Invoice {invoice.label} already covers this period: issued{" "}
+            Invoice {invoice.label} already covers this month: issued{" "}
             {dayLabel(invoice.issueDate)} {invoice.issueDate.slice(0, 4)},{" "}
-            {formatMoney(invoice.totalCents, invoice.currency)}.
+            {formatMoney(invoice.totalCents, invoice.currency)}. Its projects start unchecked.
           </span>
           <Button variant="quiet" onClick={() => void revealItemInDir(invoice.filePath).catch(() => {})}>
             Show
@@ -495,33 +496,25 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
           </p>
         ) : (
           <div className="ledger">
-            {projects.map(({ candidate, alreadyBilled }) => {
-              const unbillable = !isBillable(candidate);
+            {projects.map(({ all, keys, billedOn }) => {
+              const unbillable = !all.some(isBillable);
+              const picked = all.filter((_, index) => selected.has(keys[index]));
+              // What the ticked months come to, or all of them when none are.
+              const shown = combine(picked.length > 0 ? picked : all);
               return (
                 <CheckRow
-                  key={candidate.projectId}
-                  checked={selected.has(candidate.projectId) && !alreadyBilled}
-                  disabled={unbillable || alreadyBilled}
-                  onChange={(checked) =>
-                    setSelected((previous) => {
-                      const next = new Set(previous);
-                      if (checked) next.add(candidate.projectId);
-                      else next.delete(candidate.projectId);
-                      return next;
-                    })
-                  }
+                  key={shown.projectId}
+                  checked={unbillable ? false : tristate(keys, selected)}
+                  disabled={unbillable}
+                  onChange={(checked) => toggle(keys, checked)}
                 >
                   <span className="ledger-name">
-                    <span className="ledger-code">{candidate.code}</span> {candidate.name}
+                    <span className="ledger-code">{shown.code}</span> {shown.name}
                   </span>
                   <span className="num">
-                    {unbillable
-                      ? "no rate"
-                      : alreadyBilled
-                        ? "already invoiced"
-                        : candidateSummary(candidate, currency)}
-                    {singleBilled.has(candidate.projectId) &&
-                      ` · on invoice ${singleBilled.get(candidate.projectId)!.join(", ")}`}
+                    {unbillable ? "no rate" : candidateSummary(shown, currency)}
+                    {/* Across months, the month rows say which are invoiced. */}
+                    {!batch && billedOn.length > 0 && ` · on ${billedOn.join(", ")}`}
                   </span>
                 </CheckRow>
               );
@@ -537,21 +530,28 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings, onIs
             {plans.map((plan) => {
               const index = toIssue.indexOf(plan);
               const cents = plan.included.reduce((sum, candidate) => sum + candidateCents(candidate), 0);
-              const skippedBilled = plan.earlier.length > 0;
+              const keys = plan.billable.map((candidate) => pairKey(plan.start, candidate.projectId));
+              const earlier = plan.earlier.map((invoice) => invoice.label).join(", ");
               return (
-                <div key={plan.start} className="ledger-row">
-                  <div className="ledger-main">
-                    <span className="ledger-code">{index >= 0 ? predictedLabel(index) : "—"}</span>
-                    <span className="ledger-name">{monthLabel(monthOf(plan.start))}</span>
-                  </div>
-                  <span className="ledger-sub num">
-                    {index >= 0
-                      ? formatMoney(cents, currency)
-                      : skippedBilled
-                        ? `on ${plan.earlier.map((invoice) => invoice.label).join(", ")}`
-                        : "nothing to bill"}
+                <CheckRow
+                  key={plan.start}
+                  checked={keys.length === 0 ? false : tristate(keys, selected)}
+                  disabled={keys.length === 0}
+                  onChange={(checked) => toggle(keys, checked)}
+                >
+                  <span className="ledger-name">
+                    <span className="ledger-code">{index >= 0 ? predictedLabel(index) : "—"}</span>{" "}
+                    {monthLabel(monthOf(plan.start))}
                   </span>
-                </div>
+                  <span className="num">
+                    {keys.length === 0
+                      ? "nothing to bill"
+                      : index >= 0
+                        ? formatMoney(cents, currency)
+                        : "skipped"}
+                    {earlier !== "" && ` · on ${earlier}`}
+                  </span>
+                </CheckRow>
               );
             })}
           </div>

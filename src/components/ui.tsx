@@ -64,14 +64,17 @@ export function TextArea({ className = "", ...props }: TextareaHTMLAttributes<HT
   return <textarea className={`text-input text-area ${className}`.trim()} rows={3} {...props} />;
 }
 
-/** A Radix checkbox with its label, used for picking invoice lines. */
+/**
+ * A Radix checkbox with its label, used for picking invoice lines. `"mixed"`
+ * shows a dash, for a row standing for several boxes that disagree.
+ */
 export function CheckRow({
   checked,
   onChange,
   disabled = false,
   children,
 }: {
-  checked: boolean;
+  checked: boolean | "mixed";
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   children: ReactNode;
@@ -80,11 +83,11 @@ export function CheckRow({
     <label className={`check-row${disabled ? " is-disabled" : ""}`}>
       <Checkbox.Root
         className="check-box"
-        checked={checked}
+        checked={checked === "mixed" ? "indeterminate" : checked}
         disabled={disabled}
         onCheckedChange={(next) => onChange(next === true)}
       >
-        <Checkbox.Indicator className="check-mark">✓</Checkbox.Indicator>
+        <Checkbox.Indicator className="check-mark">{checked === "mixed" ? "–" : "✓"}</Checkbox.Indicator>
       </Checkbox.Root>
       <span className="check-body">{children}</span>
     </label>

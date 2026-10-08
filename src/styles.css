@@ -728,7 +728,8 @@ body {
   cursor: inherit;
 }
 
-.check-box[data-state="checked"] {
+.check-box[data-state="checked"],
+.check-box[data-state="indeterminate"] {
   color: #f7faf4;
   background: var(--fill-edge);
   border-color: var(--fill-edge);
