@@ -8,7 +8,10 @@ use std::path::{Path, PathBuf};
 
 use crate::db::{settings, Db};
 use crate::error::{AppError, AppResult};
-use crate::model::{InvoiceCandidate, InvoiceDraft, InvoiceLine, IssuedInvoice, IssuedInvoiceSummary};
+use crate::model::{
+    Client, InvoiceCandidate, InvoiceDraft, InvoiceLine, InvoicePeriod, IssuedInvoice,
+    IssuedInvoiceSummary,
+};
 use crate::validate;
 
 /// What one line earns, rounded to the cent.
@@ -18,6 +21,14 @@ use crate::validate;
 /// beside it — the arithmetic the person reading the invoice will check.
 pub fn line_amount_cents(rate_cents: i64, minutes: i64) -> i64 {
     (rate_cents * minutes + 30) / 60
+}
+
+/// The invoice ID as printed: `ACME-12`, or `12` for a client without a code.
+pub fn label(code: Option<&str>, number: i64) -> String {
+    match code {
+        Some(code) => format!("{code}-{number}"),
+        None => number.to_string(),
+    }
 }
 
 /// `2026-08-01` -> `08/01/2026`.
@@ -129,20 +140,68 @@ pub async fn prepare(
     from: &str,
     to: &str,
 ) -> AppResult<InvoiceDraft> {
-    if project_ids.is_empty() {
-        return Err(AppError::validation("Pick at least one project to invoice."));
+    let period = InvoicePeriod {
+        from: from.to_string(),
+        to: to.to_string(),
+        project_ids: project_ids.to_vec(),
+    };
+    let mut drafts = prepare_many(db, client_id, &[period]).await?;
+    Ok(drafts.remove(0))
+}
+
+/// Builds one invoice per period, numbered in chronological order: the earliest
+/// period takes the client's next number, the one after it the number after.
+pub async fn prepare_many(
+    db: &Db,
+    client_id: i64,
+    periods: &[InvoicePeriod],
+) -> AppResult<Vec<InvoiceDraft>> {
+    if periods.is_empty() {
+        return Err(AppError::validation("Pick at least one month to invoice."));
     }
 
     let client = crate::db::clients::get(db, client_id).await?;
     let sender_name = settings::require(db, settings::SENDER_NAME, "your name").await?;
     // Checked now rather than after rendering, so the failure arrives early.
     settings::require(db, settings::INVOICE_FOLDER, "an invoice folder").await?;
+    let issue_date = settings::today_local(db).await?;
 
-    let period_start = validate::date_bound("from", from)?;
-    let period_end = validate::date_bound("to", to)?;
-    let period_end_inclusive = validate::previous_day(&period_end)?;
+    let mut ordered = Vec::with_capacity(periods.len());
+    for period in periods {
+        let from = validate::date_bound("from", &period.from)?;
+        let to = validate::date_bound("to", &period.to)?;
+        ordered.push((from, to, &period.project_ids));
+    }
+    ordered.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let available = candidates(db, client_id, &period_start, &period_end).await?;
+    if ordered.windows(2).any(|pair| pair[1].0 < pair[0].1) {
+        return Err(AppError::validation("The periods to invoice overlap."));
+    }
+
+    let numbers = free_numbers(db, client_id, client.next_invoice_number, ordered.len()).await?;
+
+    let mut drafts = Vec::with_capacity(ordered.len());
+    for ((from, to, project_ids), number) in ordered.into_iter().zip(numbers) {
+        let lines = build_lines(db, client_id, project_ids, &from, &to).await?;
+        drafts.push(draft(&client, &sender_name, &issue_date, number, from, to, lines)?);
+    }
+    Ok(drafts)
+}
+
+/// The lines for one period, in the order they are printed.
+async fn build_lines(
+    db: &Db,
+    client_id: i64,
+    project_ids: &[i64],
+    period_start: &str,
+    period_end: &str,
+) -> AppResult<Vec<InvoiceLine>> {
+    if project_ids.is_empty() {
+        return Err(AppError::validation("Pick at least one project to invoice."));
+    }
+
+    let period_end_inclusive = validate::previous_day(period_end)?;
+    let available = candidates(db, client_id, period_start, period_end).await?;
     let mut lines = Vec::new();
 
     for candidate in available {
@@ -164,7 +223,7 @@ pub async fn prepare(
                     "[{}] {} ({} - {})",
                     candidate.code,
                     candidate.name,
-                    us_date(&period_start),
+                    us_date(period_start),
                     us_date(&period_end_inclusive)
                 ),
                 minutes: Some(candidate.minutes),
@@ -175,7 +234,7 @@ pub async fn prepare(
 
         if candidate.fixed_count > 0 {
             for (name, day, amount_cents) in
-                fixed_entries(db, candidate.project_id, &period_start, &period_end).await?
+                fixed_entries(db, candidate.project_id, period_start, period_end).await?
             {
                 lines.push(InvoiceLine {
                     project_id: candidate.project_id,
@@ -189,25 +248,44 @@ pub async fn prepare(
     }
 
     if lines.is_empty() {
-        return Err(AppError::validation(
-            "Nothing was logged against those projects in that period.",
-        ));
+        return Err(AppError::validation(format!(
+            "Nothing was logged against those projects between {} and {}.",
+            us_date(period_start),
+            us_date(&period_end_inclusive)
+        )));
     }
 
+    Ok(lines)
+}
+
+fn draft(
+    client: &Client,
+    sender_name: &str,
+    issue_date: &str,
+    number: i64,
+    period_start: String,
+    period_end: String,
+    lines: Vec<InvoiceLine>,
+) -> AppResult<InvoiceDraft> {
+    let period_end_inclusive = validate::previous_day(&period_end)?;
     let total_cents = lines.iter().map(|line| line.amount_cents).sum();
-    let number = next_number(db).await?;
-    let issue_date = settings::today_local(db).await?;
+    let code_part = client
+        .code
+        .as_deref()
+        .map(|code| format!("{}-", slug(code)))
+        .unwrap_or_default();
 
     Ok(InvoiceDraft {
         file_name: format!(
-            "invoice-{number:04}-{}-{}.pdf",
+            "invoice-{code_part}{number:04}-{}-{}.pdf",
             slug(&client.name),
             &period_start[0..7]
         ),
         number,
-        issue_date,
-        client,
-        sender_name,
+        label: label(client.code.as_deref(), number),
+        issue_date: issue_date.to_string(),
+        client: client.clone(),
+        sender_name: sender_name.to_string(),
         period_start,
         period_end,
         period_end_inclusive,
@@ -223,6 +301,7 @@ pub async fn issued_for_client(db: &Db, client_id: i64) -> AppResult<Vec<IssuedI
         r#"
         SELECT id           AS "id!: i64",
                number       AS "number!: i64",
+               client_code,
                issue_date   AS "issue_date!",
                period_start AS "period_start!",
                period_end   AS "period_end!",
@@ -261,6 +340,7 @@ pub async fn issued_for_client(db: &Db, client_id: i64) -> AppResult<Vec<IssuedI
                 .collect(),
             id: invoice.id,
             number: invoice.number,
+            label: label(invoice.client_code.as_deref(), invoice.number),
             issue_date: invoice.issue_date,
             period_start: invoice.period_start,
             period_end: invoice.period_end,
@@ -276,6 +356,7 @@ pub async fn email_plan(db: &Db, invoice_id: i64) -> AppResult<EmailPlan> {
     let invoice = sqlx::query!(
         r#"
         SELECT number       AS "number!: i64",
+               client_code,
                client_id    AS "client_id!: i64",
                period_start AS "period_start!",
                file_path    AS "file_path!"
@@ -300,7 +381,7 @@ pub async fn email_plan(db: &Db, invoice_id: i64) -> AppResult<EmailPlan> {
     .collect();
 
     Ok(EmailPlan {
-        number: invoice.number,
+        label: label(invoice.client_code.as_deref(), invoice.number),
         sender_name,
         period_start: invoice.period_start,
         file_path: invoice.file_path,
@@ -310,97 +391,200 @@ pub async fn email_plan(db: &Db, invoice_id: i64) -> AppResult<EmailPlan> {
 
 /// The inputs to `mail::compose`, read back from a stored invoice.
 pub struct EmailPlan {
-    pub number: i64,
+    pub label: String,
     pub sender_name: String,
     pub period_start: String,
     pub file_path: String,
     pub recipients: Vec<String>,
 }
 
-/// The next number in the sequence: one past the highest ever issued.
-pub async fn next_number(db: &Db) -> AppResult<i64> {
-    let row = sqlx::query!(
-        r#"SELECT CAST(coalesce(max(number), 0) AS INTEGER) AS "highest!: i64" FROM invoices"#
+/// The number this client's next invoice takes.
+pub async fn next_number(db: &Db, client_id: i64) -> AppResult<i64> {
+    let client = crate::db::clients::get(db, client_id).await?;
+    Ok(free_numbers(db, client_id, client.next_invoice_number, 1).await?[0])
+}
+
+/// The first `count` numbers from `start` on that this client has not used.
+///
+/// The stored next number can be set by hand to fill a gap, so the numbers
+/// after it are not necessarily free.
+async fn free_numbers(db: &Db, client_id: i64, start: i64, count: usize) -> AppResult<Vec<i64>> {
+    let taken: Vec<i64> = sqlx::query_scalar!(
+        r#"SELECT number AS "number!: i64" FROM invoices WHERE client_id = ?1 AND number >= ?2"#,
+        client_id,
+        start
     )
-    .fetch_one(db)
+    .fetch_all(db)
     .await?;
 
-    Ok(row.highest + 1)
+    let mut free = Vec::with_capacity(count);
+    let mut candidate = start;
+    while free.len() < count {
+        if !taken.contains(&candidate) {
+            free.push(candidate);
+        }
+        candidate += 1;
+    }
+    Ok(free)
 }
 
 /// Records the invoice and writes the rendered PDF.
-///
-/// The row goes in first and the file is written before the transaction commits,
-/// so a failed write leaves neither a record without a document nor a number
-/// quietly consumed.
 pub async fn issue(db: &Db, draft: &InvoiceDraft, pdf: &[u8]) -> AppResult<IssuedInvoice> {
-    if pdf.is_empty() {
-        return Err(AppError::validation("The rendered invoice was empty."));
+    let mut issued = issue_many(db, &[(draft.clone(), pdf.to_vec())]).await?;
+    Ok(issued.remove(0))
+}
+
+/// Records the invoices and writes their PDFs, all or none.
+///
+/// The rows go in first and the files are written before the transaction
+/// commits, so a failure leaves neither a record without a document nor a
+/// number quietly consumed; files already written for the batch are removed.
+pub async fn issue_many(
+    db: &Db,
+    invoices: &[(InvoiceDraft, Vec<u8>)],
+) -> AppResult<Vec<IssuedInvoice>> {
+    if invoices.is_empty() {
+        return Err(AppError::validation("There were no invoices to issue."));
     }
 
     let folder = settings::require(db, settings::INVOICE_FOLDER, "an invoice folder").await?;
-    let path = destination(&folder, &draft.period_start, &draft.client.name, &draft.file_name)?;
-    let path_text = path.to_string_lossy().to_string();
+    let mut written: Vec<PathBuf> = Vec::new();
 
-    let mut tx = db.begin().await?;
-
-    let invoice_id = sqlx::query!(
-        r#"
-        INSERT INTO invoices
-            (number, client_id, issue_date, period_start, period_end, total_cents, file_path,
-             currency)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-        "#,
-        draft.number,
-        draft.client.id,
-        draft.issue_date,
-        draft.period_start,
-        draft.period_end,
-        draft.total_cents,
-        path_text,
-        draft.client.currency
-    )
-    .execute(&mut *tx)
-    .await
-    .map_err(|err| match &err {
-        // The number is unique, so a collision means something else issued one
-        // since this draft was prepared.
-        sqlx::Error::Database(db_err) if db_err.message().contains("UNIQUE") => {
-            AppError::Conflict(format!(
-                "Invoice number {} already exists. Close this and start again to take the next number.",
-                draft.number
-            ))
+    let result = issue_in_transaction(db, &folder, invoices, &mut written).await;
+    if result.is_err() {
+        for path in &written {
+            let _ = std::fs::remove_file(path);
         }
-        _ => AppError::from_sqlx(err),
-    })?
-    .last_insert_rowid();
+    }
+    result
+}
 
-    for line in &draft.lines {
+async fn issue_in_transaction(
+    db: &Db,
+    folder: &str,
+    invoices: &[(InvoiceDraft, Vec<u8>)],
+    written: &mut Vec<PathBuf>,
+) -> AppResult<Vec<IssuedInvoice>> {
+    let mut tx = db.begin().await?;
+    let mut issued = Vec::with_capacity(invoices.len());
+
+    for (draft, pdf) in invoices {
+        if pdf.is_empty() {
+            return Err(AppError::validation(format!(
+                "The rendered invoice {} was empty.",
+                draft.label
+            )));
+        }
+
+        let path = destination(folder, &draft.period_start, &draft.client.name, &draft.file_name)?;
+        let path_text = path.to_string_lossy().to_string();
+
+        let invoice_id = sqlx::query!(
+            r#"
+            INSERT INTO invoices
+                (number, client_id, client_code, issue_date, period_start, period_end,
+                 total_cents, file_path, currency)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+            draft.number,
+            draft.client.id,
+            draft.client.code,
+            draft.issue_date,
+            draft.period_start,
+            draft.period_end,
+            draft.total_cents,
+            path_text,
+            draft.client.currency
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| match &err {
+            // Numbers are unique per client, so a collision means something
+            // else issued this one since the draft was prepared.
+            sqlx::Error::Database(db_err) if db_err.message().contains("UNIQUE") => {
+                AppError::Conflict(format!(
+                    "Invoice {} already exists. Close this and start again to take the next number.",
+                    draft.label
+                ))
+            }
+            _ => AppError::from_sqlx(err),
+        })?
+        .last_insert_rowid();
+
+        for line in &draft.lines {
+            sqlx::query!(
+                r#"
+                INSERT INTO invoice_lines
+                    (invoice_id, project_id, description, minutes, rate_cents, amount_cents)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                "#,
+                invoice_id,
+                line.project_id,
+                line.description,
+                line.minutes,
+                line.rate_cents,
+                line.amount_cents
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // An invoice already sent is never overwritten, and a file that was
+        // there before this batch is not one to clean up after a failure.
+        if path.exists() {
+            return Err(AppError::Conflict(format!(
+                "{} already exists. Move it aside to issue invoice {}.",
+                path_text, draft.label
+            )));
+        }
+        write_pdf(&path, pdf)?;
+        written.push(path);
+
+        issued.push(IssuedInvoice {
+            id: invoice_id,
+            number: draft.number,
+            label: draft.label.clone(),
+            period_start: draft.period_start.clone(),
+            total_cents: draft.total_cents,
+            currency: draft.client.currency.clone(),
+            file_path: path_text,
+        });
+    }
+
+    // Each client's sequence continues after the highest number just issued,
+    // skipping any already taken beyond it.
+    let mut clients: Vec<i64> = invoices.iter().map(|(draft, _)| draft.client.id).collect();
+    clients.sort_unstable();
+    clients.dedup();
+
+    for client_id in clients {
+        let highest = invoices
+            .iter()
+            .filter(|(draft, _)| draft.client.id == client_id)
+            .map(|(draft, _)| draft.number)
+            .max()
+            .unwrap_or(0);
+
         sqlx::query!(
             r#"
-            INSERT INTO invoice_lines
-                (invoice_id, project_id, description, minutes, rate_cents, amount_cents)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            WITH RECURSIVE candidate(n) AS (
+                SELECT ?2 + 1
+                UNION ALL
+                SELECT n + 1 FROM candidate
+                WHERE EXISTS (SELECT 1 FROM invoices WHERE client_id = ?1 AND number = n)
+            )
+            UPDATE clients SET next_invoice_number = (SELECT max(n) FROM candidate)
+            WHERE id = ?1
             "#,
-            invoice_id,
-            line.project_id,
-            line.description,
-            line.minutes,
-            line.rate_cents,
-            line.amount_cents
+            client_id,
+            highest
         )
         .execute(&mut *tx)
         .await?;
     }
 
-    write_pdf(&path, pdf)?;
     tx.commit().await?;
-
-    Ok(IssuedInvoice {
-        id: invoice_id,
-        number: draft.number,
-        file_path: path_text,
-    })
+    Ok(issued)
 }
 
 /// Where an invoice is filed: `<folder>/<year>/Q<n>/<client>/<file>`.

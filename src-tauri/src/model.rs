@@ -14,6 +14,12 @@ pub struct Client {
     pub address: Option<String>,
     /// ISO 4217 code: what every amount for this client is in.
     pub currency: String,
+    /// Short upper-case handle, unique among live clients. Prefixes the
+    /// client's invoice IDs: `ACME-12`.
+    pub code: Option<String>,
+    /// The number this client's next invoice takes. Each client has its own
+    /// sequence.
+    pub next_invoice_number: i64,
     /// UTC instant, `Z`-suffixed. Non-null means archived.
     pub archived_at: Option<String>,
     pub created_at: String,
@@ -117,11 +123,24 @@ pub struct InvoiceLine {
     pub amount_cents: i64,
 }
 
+/// One invoice to prepare: a billing period and the projects to bill in it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvoicePeriod {
+    /// Inclusive start.
+    pub from: String,
+    /// Exclusive end.
+    pub to: String,
+    pub project_ids: Vec<i64>,
+}
+
 /// Everything needed to render an invoice, before it is issued.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InvoiceDraft {
     pub number: i64,
+    /// The invoice ID as printed: `ACME-12`, or `12` for a client without a code.
+    pub label: String,
     pub issue_date: String,
     pub client: Client,
     pub sender_name: String,
@@ -143,6 +162,7 @@ pub struct InvoiceDraft {
 pub struct IssuedInvoiceSummary {
     pub id: i64,
     pub number: i64,
+    pub label: String,
     pub issue_date: String,
     /// Inclusive start of the billing period.
     pub period_start: String,
@@ -161,6 +181,11 @@ pub struct IssuedInvoiceSummary {
 pub struct IssuedInvoice {
     pub id: i64,
     pub number: i64,
+    pub label: String,
+    /// Inclusive start of the billing period.
+    pub period_start: String,
+    pub total_cents: i64,
+    pub currency: String,
     pub file_path: String,
 }
 

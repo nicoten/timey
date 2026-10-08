@@ -16,7 +16,8 @@ where
     let client = sqlx::query_as!(
         Client,
         r#"
-        SELECT id AS "id!", name, ein, address, currency, archived_at, created_at
+        SELECT id AS "id!", name, ein, address, currency, code, next_invoice_number,
+               archived_at, created_at
         FROM clients WHERE id = ?1
         "#,
         id
@@ -31,7 +32,8 @@ pub async fn list(db: &Db, include_archived: bool) -> AppResult<Vec<Client>> {
     let clients = sqlx::query_as!(
         Client,
         r#"
-        SELECT id AS "id!", name, ein, address, currency, archived_at, created_at
+        SELECT id AS "id!", name, ein, address, currency, code, next_invoice_number,
+               archived_at, created_at
         FROM clients
         WHERE ?1 OR archived_at IS NULL
         ORDER BY lower(name)
@@ -56,22 +58,26 @@ pub async fn create(
     ein: Option<String>,
     address: Option<String>,
     currency: &str,
+    code: Option<String>,
 ) -> AppResult<Client> {
     let name = validate::non_empty("Client name", name)?;
     let ein = validate::optional_text(ein);
     let address = validate::optional_text(address);
     let currency = validate::currency(currency)?;
+    let code = validate::client_code(code)?;
 
     let client = sqlx::query_as!(
         Client,
         r#"
-        INSERT INTO clients (name, ein, address, currency) VALUES (?1, ?2, ?3, ?4)
-        RETURNING id AS "id!", name, ein, address, currency, archived_at, created_at
+        INSERT INTO clients (name, ein, address, currency, code) VALUES (?1, ?2, ?3, ?4, ?5)
+        RETURNING id AS "id!", name, ein, address, currency, code, next_invoice_number,
+                  archived_at, created_at
         "#,
         name,
         ein,
         address,
-        currency
+        currency,
+        code
     )
     .fetch_one(db)
     .await?;
@@ -86,21 +92,66 @@ pub async fn update(
     ein: Option<String>,
     address: Option<String>,
     currency: &str,
+    code: Option<String>,
 ) -> AppResult<Client> {
     let name = validate::non_empty("Client name", name)?;
     let ein = validate::optional_text(ein);
     let address = validate::optional_text(address);
     let currency = validate::currency(currency)?;
+    let code = validate::client_code(code)?;
 
     let mut tx = db.begin().await?;
 
     let affected = sqlx::query!(
-        "UPDATE clients SET name = ?2, ein = ?3, address = ?4, currency = ?5 WHERE id = ?1",
+        "UPDATE clients SET name = ?2, ein = ?3, address = ?4, currency = ?5, code = ?6 WHERE id = ?1",
         id,
         name,
         ein,
         address,
-        currency
+        currency,
+        code
+    )
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    if affected == 0 {
+        return Err(AppError::NotFound { entity: "Client", id });
+    }
+
+    let client = by_id(&mut *tx, id)
+        .await?
+        .ok_or(AppError::NotFound { entity: "Client", id })?;
+
+    tx.commit().await?;
+    Ok(client)
+}
+
+/// Resets where the client's invoice sequence continues from, for when it has
+/// drifted from invoices issued elsewhere. Refuses a number already issued.
+pub async fn set_next_invoice_number(db: &Db, id: i64, number: i64) -> AppResult<Client> {
+    let number = validate::invoice_number(number)?;
+
+    let mut tx = db.begin().await?;
+
+    let taken = sqlx::query_scalar!(
+        r#"SELECT count(*) AS "count!: i64" FROM invoices WHERE client_id = ?1 AND number = ?2"#,
+        id,
+        number
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if taken > 0 {
+        return Err(AppError::Conflict(format!(
+            "Invoice number {number} has already been issued to this client."
+        )));
+    }
+
+    let affected = sqlx::query!(
+        "UPDATE clients SET next_invoice_number = ?2 WHERE id = ?1",
+        id,
+        number
     )
     .execute(&mut *tx)
     .await?

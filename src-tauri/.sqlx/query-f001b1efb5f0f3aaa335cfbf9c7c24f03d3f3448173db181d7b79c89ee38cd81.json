@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE clients SET name = ?2, ein = ?3, address = ?4, currency = ?5, code = ?6 WHERE id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "f001b1efb5f0f3aaa335cfbf9c7c24f03d3f3448173db181d7b79c89ee38cd81"
+}

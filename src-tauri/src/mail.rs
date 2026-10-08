@@ -28,9 +28,9 @@ pub struct EmailAction {
     pub file_path: String,
 }
 
-/// `Invoice 20 — Sam Rivera — August 2026`
-pub fn subject(number: i64, sender: &str, period_start: &str) -> String {
-    format!("Invoice {number} — {sender} — {}", month_year(period_start))
+/// `Invoice ACME-20 — Sam Rivera — August 2026`
+pub fn subject(label: &str, sender: &str, period_start: &str) -> String {
+    format!("Invoice {label} — {sender} — {}", month_year(period_start))
 }
 
 /// The wording asked for, with a blank line before the sign-off.
@@ -194,7 +194,7 @@ fn draft_in_apple_mail(_: &str, _: &str, _: &str, _: &[String]) -> AppResult<()>
 /// Drafts in Apple Mail when it is the default, otherwise reports what the
 /// caller should open instead.
 pub fn compose(
-    number: i64,
+    label: &str,
     sender: &str,
     period_start: &str,
     file_path: &str,
@@ -206,7 +206,7 @@ pub fn compose(
         ));
     }
 
-    let subject = subject(number, sender, period_start);
+    let subject = subject(label, sender, period_start);
     let body = body(sender, period_start);
 
     let handler = default_mail_handler();
@@ -239,11 +239,11 @@ mod tests {
     #[test]
     fn subject_names_the_invoice_month_and_sender() {
         assert_eq!(
-            subject(20, "Sam Rivera", "2026-08-01"),
-            "Invoice 20 — Sam Rivera — August 2026"
+            subject("ACME-20", "Sam Rivera", "2026-08-01"),
+            "Invoice ACME-20 — Sam Rivera — August 2026"
         );
         assert_eq!(
-            subject(1, "A", "2025-12-01"),
+            subject("1", "A", "2025-12-01"),
             "Invoice 1 — A — December 2025"
         );
     }
@@ -299,7 +299,7 @@ mod tests {
 
     #[test]
     fn composing_without_contacts_is_refused() {
-        let error = compose(1, "A", "2026-08-01", "/tmp/x.pdf", vec![]).unwrap_err();
+        let error = compose("1", "A", "2026-08-01", "/tmp/x.pdf", vec![]).unwrap_err();
         assert!(error.to_string().contains("no contacts"), "{error}");
     }
 }

@@ -112,7 +112,7 @@ function drawHeader(doc: jsPDF, draft: InvoiceDraft): void {
 
   // Invoice identity, left
   const meta: [string, string, boolean][] = [
-    ["Invoice ID", String(draft.number), true],
+    ["Invoice ID", draft.label, true],
     ["Issue Date", usDate(draft.issueDate), false],
     ["Due Date", `${usDate(draft.issueDate)} (upon receipt)`, false],
   ];

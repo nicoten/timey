@@ -57,6 +57,8 @@ impl AppError {
         if message.contains("UNIQUE constraint failed") {
             let explanation = if message.contains("clients_active_name") {
                 "A client with that name already exists."
+            } else if message.contains("clients_active_code") {
+                "Another client already uses that code."
             } else if message.contains("contacts_client_email") {
                 "That email is already a contact for this client."
             } else if message.contains("projects_active_code") {

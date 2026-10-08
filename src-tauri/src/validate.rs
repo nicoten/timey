@@ -126,6 +126,30 @@ pub fn currency(value: &str) -> AppResult<String> {
     Ok(code)
 }
 
+/// A client's code, the prefix of its invoice IDs: upper-cased, letters, digits
+/// and dashes, since it also ends up in filenames. Blank means no code.
+pub fn client_code(value: Option<String>) -> AppResult<Option<String>> {
+    let Some(code) = optional_text(value) else { return Ok(None) };
+    let code = code.to_uppercase();
+    if code.len() > 12 || !code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(AppError::validation(format!(
+            "`{code}` is not a usable client code. Use up to 12 letters, digits or dashes."
+        )));
+    }
+    if code.starts_with('-') || code.ends_with('-') {
+        return Err(AppError::validation("A client code cannot start or end with a dash."));
+    }
+    Ok(Some(code))
+}
+
+/// An invoice number: a positive whole number.
+pub fn invoice_number(value: i64) -> AppResult<i64> {
+    if value <= 0 {
+        return Err(AppError::validation("Invoice numbers start at 1."));
+    }
+    Ok(value)
+}
+
 /// A fixed-price entry's day, `YYYY-MM-DD`, returned as the midnight start it is
 /// stored under.
 pub fn fixed_day(value: &str) -> AppResult<String> {
@@ -303,6 +327,17 @@ mod tests {
         assert_eq!(currency("USD").unwrap(), "USD");
         for bad in ["", "GBP", "dollars"] {
             assert!(currency(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn client_codes_are_upper_cased_and_filename_safe() {
+        assert_eq!(client_code(Some(" acme ".into())).unwrap(), Some("ACME".into()));
+        assert_eq!(client_code(Some("nw-2".into())).unwrap(), Some("NW-2".into()));
+        assert_eq!(client_code(Some("   ".into())).unwrap(), None);
+        assert_eq!(client_code(None).unwrap(), None);
+        for bad in ["A B", "a/b", "-ACME", "ACME-", "THIRTEENCHARS"] {
+            assert!(client_code(Some(bad.into())).is_err(), "{bad:?} should be rejected");
         }
     }
 

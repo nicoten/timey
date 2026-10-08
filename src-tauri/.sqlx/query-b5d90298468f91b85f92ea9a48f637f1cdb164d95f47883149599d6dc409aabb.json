@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT id           AS \"id!: i64\",\n               number       AS \"number!: i64\",\n               client_code,\n               issue_date   AS \"issue_date!\",\n               period_start AS \"period_start!\",\n               period_end   AS \"period_end!\",\n               total_cents  AS \"total_cents!: i64\",\n               currency     AS \"currency!\",\n               file_path    AS \"file_path!\"\n        FROM invoices\n        WHERE client_id = ?1\n        ORDER BY period_start DESC, number DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "number!: i64",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "client_code",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "issue_date!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "period_start!",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "period_end!",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "total_cents!: i64",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "currency!",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_path!",
+        "ordinal": 8,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b5d90298468f91b85f92ea9a48f637f1cdb164d95f47883149599d6dc409aabb"
+}

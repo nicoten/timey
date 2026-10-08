@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            WITH RECURSIVE candidate(n) AS (\n                SELECT ?2 + 1\n                UNION ALL\n                SELECT n + 1 FROM candidate\n                WHERE EXISTS (SELECT 1 FROM invoices WHERE client_id = ?1 AND number = n)\n            )\n            UPDATE clients SET next_invoice_number = (SELECT max(n) FROM candidate)\n            WHERE id = ?1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "888533c95d4856f0795a3a4cdd187db4255ffe7e787910eb470afa1ce0dad0bb"
+}

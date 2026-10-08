@@ -7,9 +7,11 @@ import {
   SETTING_INVOICE_FOLDER,
   SETTING_SENDER_NAME,
   clientCreate,
+  clientSetNextInvoiceNumber,
   clientDelete,
   clientSetArchived,
   clientUpdate,
+  invoiceLabel,
   settingsSet,
   contactCreate,
   contactDelete,
@@ -393,17 +395,29 @@ function ClientDialog({
   const [ein, setEin] = useState(client?.ein ?? "");
   const [address, setAddress] = useState(client?.address ?? "");
   const [currency, setCurrency] = useState<string>(client?.currency ?? DEFAULT_CURRENCY);
+  const [code, setCode] = useState(client?.code ?? "");
+  const savedNext = client?.nextInvoiceNumber ?? 1;
+  const [nextNumber, setNextNumber] = useState(String(savedNext));
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+
+  const parsedNext = /^\s*\d+\s*$/.test(nextNumber) ? Number(nextNumber) : null;
+  const previewCode = code.trim().toUpperCase() || null;
 
   async function submit() {
     setBusy(true);
     setError(null);
     try {
-      if (client === null) {
-        await clientCreate({ name, ein, address, currency });
-      } else {
-        await clientUpdate({ id: client.id, name, ein, address, currency });
+      if (parsedNext === null || parsedNext < 1) {
+        throw new Error("The next invoice number must be a whole number, 1 or more.");
+      }
+      const saved =
+        client === null
+          ? await clientCreate({ name, ein, address, currency, code })
+          : await clientUpdate({ id: client.id, name, ein, address, currency, code });
+      // Only when changed: resetting it is a correction, not part of every save.
+      if (parsedNext !== savedNext) {
+        await clientSetNextInvoiceNumber(saved.id, parsedNext);
       }
       onSaved();
     } catch (caught) {
@@ -429,6 +443,30 @@ function ClientDialog({
           onChange={(event) => setName(event.currentTarget.value)}
         />
       </Field>
+      {/* Each client numbers its invoices separately; the code tells the
+          sequences apart on the page: ACME-12. */}
+      <div className="field-pair">
+        <Field label="Code">
+          <TextInput
+            className="num"
+            value={code}
+            placeholder="ACME"
+            maxLength={12}
+            onChange={(event) => setCode(event.currentTarget.value)}
+          />
+        </Field>
+        <Field label="Next invoice #">
+          <TextInput
+            className="num"
+            value={nextNumber}
+            inputMode="numeric"
+            onChange={(event) => setNextNumber(event.currentTarget.value)}
+          />
+        </Field>
+      </div>
+      {parsedNext !== null && parsedNext > 0 && (
+        <p className="ledger-sub">Next invoice: {invoiceLabel(previewCode, parsedNext)}</p>
+      )}
       <Field label="EIN">
         <TextInput
           className="num"
@@ -475,7 +513,10 @@ function ClientRow({
       <div className="ledger-row">
         <div className="ledger-main">
           <span className="ledger-name">{client.name}</span>
-          <span className="ledger-sub">{client.currency}</span>
+          <span className="ledger-sub">
+            {client.code !== null && `${client.code} · `}
+            {client.currency} · next #{invoiceLabel(client.code, client.nextInvoiceNumber)}
+          </span>
           {client.archivedAt !== null && <span className="tag">Archived</span>}
         </div>
         <div className="ledger-actions">

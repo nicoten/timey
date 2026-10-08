@@ -19,6 +19,10 @@ export interface Client {
   address: string | null;
   /** ISO 4217 code: what every amount for this client is in. */
   currency: string;
+  /** Short upper-case handle prefixing the client's invoice IDs: `ACME-12`. */
+  code: string | null;
+  /** The number this client's next invoice takes; each client has its own sequence. */
+  nextInvoiceNumber: number;
   /** UTC instant; non-null means archived. */
   archivedAt: string | null;
   createdAt: string;
@@ -139,12 +143,14 @@ export function clientCreate(input: {
   ein?: string | null;
   address?: string | null;
   currency: string;
+  code?: string | null;
 }): Promise<Client> {
   return invoke("client_create", {
     name: input.name,
     ein: input.ein ?? null,
     address: input.address ?? null,
     currency: input.currency,
+    code: input.code ?? null,
   });
 }
 
@@ -154,6 +160,7 @@ export function clientUpdate(input: {
   ein?: string | null;
   address?: string | null;
   currency: string;
+  code?: string | null;
 }): Promise<Client> {
   return invoke("client_update", {
     id: input.id,
@@ -161,7 +168,18 @@ export function clientUpdate(input: {
     ein: input.ein ?? null,
     address: input.address ?? null,
     currency: input.currency,
+    code: input.code ?? null,
   });
+}
+
+/** Where the client's invoice sequence continues; refuses a number already issued. */
+export function clientSetNextInvoiceNumber(id: number, number: number): Promise<Client> {
+  return invoke("client_set_next_invoice_number", { id, number });
+}
+
+/** `ACME-12`, or `12` for a client without a code — as the backend prints it. */
+export function invoiceLabel(code: string | null, number: number): string {
+  return code ? `${code}-${number}` : String(number);
 }
 
 export function clientSetArchived(id: number, archived: boolean): Promise<Client> {
@@ -349,6 +367,8 @@ export interface InvoiceLine {
 
 export interface InvoiceDraft {
   number: number;
+  /** The invoice ID as printed: `ACME-12`, or `12` without a client code. */
+  label: string;
   issueDate: string;
   client: Client;
   senderName: string;
@@ -365,6 +385,10 @@ export interface InvoiceDraft {
 export interface IssuedInvoice {
   id: number;
   number: number;
+  label: string;
+  periodStart: string;
+  totalCents: number;
+  currency: string;
   filePath: string;
 }
 
@@ -380,6 +404,7 @@ export function invoiceCandidates(
 export interface IssuedInvoiceSummary {
   id: number;
   number: number;
+  label: string;
   issueDate: string;
   /** Inclusive start of the billing period. */
   periodStart: string;
@@ -397,19 +422,22 @@ export function invoicesIssued(clientId: number): Promise<IssuedInvoiceSummary[]
   return invoke("invoices_issued", { clientId });
 }
 
-export function invoicePrepare(
-  clientId: number,
-  projectIds: number[],
-  from: string,
-  to: string,
-): Promise<InvoiceDraft> {
-  return invoke("invoice_prepare", { clientId, projectIds, from, to });
+/** One invoice to prepare: a period, `[from, to)`, and the projects billed in it. */
+export interface InvoicePeriod {
+  from: string;
+  to: string;
+  projectIds: number[];
 }
 
-/** Writes the rendered PDF and records the invoice. */
-export function invoiceIssue(draft: InvoiceDraft, pdf: Uint8Array): Promise<IssuedInvoice> {
+/** One draft per period, numbered in chronological order from the client's next number. */
+export function invoicePrepareMany(clientId: number, periods: InvoicePeriod[]): Promise<InvoiceDraft[]> {
+  return invoke("invoice_prepare_many", { clientId, periods });
+}
+
+/** Writes the rendered PDFs and records the invoices, all or none. */
+export function invoiceIssueMany(drafts: InvoiceDraft[], pdfs: Uint8Array[]): Promise<IssuedInvoice[]> {
   // Tauri deserializes a plain number array into Rust's Vec<u8>.
-  return invoke("invoice_issue", { draft, pdf: Array.from(pdf) });
+  return invoke("invoice_issue_many", { drafts, pdfs: pdfs.map((pdf) => Array.from(pdf)) });
 }
 
 /** `1050` -> `"17.50"`, the quantity column on an invoice. */

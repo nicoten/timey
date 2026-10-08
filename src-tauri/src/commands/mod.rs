@@ -14,7 +14,7 @@ use crate::error::AppResult;
 use crate::import;
 use crate::model::{
     Client, Contact, Entry, EntryDetail, FixedEntryInput, ImportPreview, InvoiceCandidate,
-    InvoiceDraft, IssuedInvoice, IssuedInvoiceSummary, Project,
+    InvoiceDraft, InvoicePeriod, IssuedInvoice, IssuedInvoiceSummary, Project,
 };
 
 #[tauri::command]
@@ -29,8 +29,9 @@ pub async fn client_create(
     ein: Option<String>,
     address: Option<String>,
     currency: String,
+    code: Option<String>,
 ) -> AppResult<Client> {
-    db::clients::create(&db, &name, ein, address, &currency).await
+    db::clients::create(&db, &name, ein, address, &currency, code).await
 }
 
 #[tauri::command]
@@ -41,8 +42,19 @@ pub async fn client_update(
     ein: Option<String>,
     address: Option<String>,
     currency: String,
+    code: Option<String>,
 ) -> AppResult<Client> {
-    db::clients::update(&db, id, &name, ein, address, &currency).await
+    db::clients::update(&db, id, &name, ein, address, &currency, code).await
+}
+
+/// Sets the number the client's next invoice takes, when the sequence drifted.
+#[tauri::command]
+pub async fn client_set_next_invoice_number(
+    db: State<'_, Db>,
+    id: i64,
+    number: i64,
+) -> AppResult<Client> {
+    db::clients::set_next_invoice_number(&db, id, number).await
 }
 
 #[tauri::command]
@@ -237,26 +249,31 @@ pub async fn invoices_issued(db: State<'_, Db>, client_id: i64) -> AppResult<Vec
     db::invoices::issued_for_client(&db, client_id).await
 }
 
-/// Everything needed to render the document, including the number it will take.
+/// One draft per period, numbered in chronological order from the client's next
+/// number. A single invoice is a batch of one.
 #[tauri::command]
-pub async fn invoice_prepare(
+pub async fn invoice_prepare_many(
     db: State<'_, Db>,
     client_id: i64,
-    project_ids: Vec<i64>,
-    from: String,
-    to: String,
-) -> AppResult<InvoiceDraft> {
-    db::invoices::prepare(&db, client_id, &project_ids, &from, &to).await
+    periods: Vec<InvoicePeriod>,
+) -> AppResult<Vec<InvoiceDraft>> {
+    db::invoices::prepare_many(&db, client_id, &periods).await
 }
 
-/// Records the invoice and writes the rendered PDF to the configured folder.
+/// Records the invoices and writes their rendered PDFs, all or none.
 #[tauri::command]
-pub async fn invoice_issue(
+pub async fn invoice_issue_many(
     db: State<'_, Db>,
-    draft: InvoiceDraft,
-    pdf: Vec<u8>,
-) -> AppResult<IssuedInvoice> {
-    db::invoices::issue(&db, &draft, &pdf).await
+    drafts: Vec<InvoiceDraft>,
+    pdfs: Vec<Vec<u8>>,
+) -> AppResult<Vec<IssuedInvoice>> {
+    if drafts.len() != pdfs.len() {
+        return Err(crate::error::AppError::validation(
+            "Every invoice needs exactly one rendered document.",
+        ));
+    }
+    let invoices: Vec<_> = drafts.into_iter().zip(pdfs).collect();
+    db::invoices::issue_many(&db, &invoices).await
 }
 
 /// Opens a mail draft for an issued invoice, addressed to the client's contacts.
@@ -268,7 +285,7 @@ pub async fn invoice_email(db: State<'_, Db>, invoice_id: i64) -> AppResult<Emai
     let plan = db::invoices::email_plan(&db, invoice_id).await?;
 
     mail::compose(
-        plan.number,
+        &plan.label,
         &plan.sender_name,
         &plan.period_start,
         &plan.file_path,

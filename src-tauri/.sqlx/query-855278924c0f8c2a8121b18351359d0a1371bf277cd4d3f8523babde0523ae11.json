@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n        INSERT INTO clients (name, ein, address, currency) VALUES (?1, ?2, ?3, ?4)\n        RETURNING id AS \"id!\", name, ein, address, currency, archived_at, created_at\n        ",
+  "query": "\n        SELECT id AS \"id!\", name, ein, address, currency, code, next_invoice_number,\n               archived_at, created_at\n        FROM clients WHERE id = ?1\n        ",
   "describe": {
     "columns": [
       {
@@ -29,18 +29,28 @@
         "type_info": "Text"
       },
       {
-        "name": "archived_at",
+        "name": "code",
         "ordinal": 5,
         "type_info": "Text"
       },
       {
-        "name": "created_at",
+        "name": "next_invoice_number",
         "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "archived_at",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 8,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 4
+      "Right": 1
     },
     "nullable": [
       false,
@@ -49,8 +59,10 @@
       true,
       false,
       true,
+      false,
+      true,
       false
     ]
   },
-  "hash": "66d28aa363d5bcf5157116b6e7d27e6549c7a9491bfd54963c88b746e3acf1ff"
+  "hash": "855278924c0f8c2a8121b18351359d0a1371bf277cd4d3f8523babde0523ae11"
 }

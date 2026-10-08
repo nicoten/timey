@@ -313,6 +313,7 @@ export default function App() {
             clients={clients}
             settings={settings}
             onClose={() => setInvoicing(false)}
+            onIssued={() => void loadCatalog()}
             onOpenSettings={() => {
               setInvoicing(false);
               setView("settings");
