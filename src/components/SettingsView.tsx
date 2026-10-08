@@ -180,6 +180,7 @@ function InvoicingSection({
             </span>
             <Button onClick={() => void chooseFolder()}>Choose…</Button>
           </div>
+          <p className="ledger-sub" style={{ margin: 0 }}>Filed inside it by year, quarter and client.</p>
         </div>
 
         {saved && <span className="ledger-sub">Saved.</span>}

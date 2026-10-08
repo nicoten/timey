@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use crate::db::{settings, Db};
 use crate::error::{AppError, AppResult};
-use crate::model::{InvoiceCandidate, InvoiceDraft, InvoiceLine, IssuedInvoice};
+use crate::model::{InvoiceCandidate, InvoiceDraft, InvoiceLine, IssuedInvoice, IssuedInvoiceSummary};
 use crate::validate;
 
 /// What one line earns, rounded to the cent.
@@ -216,6 +216,61 @@ pub async fn prepare(
     })
 }
 
+/// Every invoice issued to this client, latest period first, with the projects
+/// each one billed.
+pub async fn issued_for_client(db: &Db, client_id: i64) -> AppResult<Vec<IssuedInvoiceSummary>> {
+    let invoices = sqlx::query!(
+        r#"
+        SELECT id           AS "id!: i64",
+               number       AS "number!: i64",
+               issue_date   AS "issue_date!",
+               period_start AS "period_start!",
+               period_end   AS "period_end!",
+               total_cents  AS "total_cents!: i64",
+               currency     AS "currency!",
+               file_path    AS "file_path!"
+        FROM invoices
+        WHERE client_id = ?1
+        ORDER BY period_start DESC, number DESC
+        "#,
+        client_id
+    )
+    .fetch_all(db)
+    .await?;
+
+    let lines = sqlx::query!(
+        r#"
+        SELECT DISTINCT l.invoice_id AS "invoice_id!: i64",
+                        l.project_id AS "project_id!: i64"
+        FROM invoice_lines l
+        JOIN invoices i ON i.id = l.invoice_id
+        WHERE i.client_id = ?1 AND l.project_id IS NOT NULL
+        "#,
+        client_id
+    )
+    .fetch_all(db)
+    .await?;
+
+    Ok(invoices
+        .into_iter()
+        .map(|invoice| IssuedInvoiceSummary {
+            project_ids: lines
+                .iter()
+                .filter(|line| line.invoice_id == invoice.id)
+                .map(|line| line.project_id)
+                .collect(),
+            id: invoice.id,
+            number: invoice.number,
+            issue_date: invoice.issue_date,
+            period_start: invoice.period_start,
+            period_end: invoice.period_end,
+            total_cents: invoice.total_cents,
+            currency: invoice.currency,
+            file_path: invoice.file_path,
+        })
+        .collect())
+}
+
 /// Everything the mail draft needs for an already-issued invoice.
 pub async fn email_plan(db: &Db, invoice_id: i64) -> AppResult<EmailPlan> {
     let invoice = sqlx::query!(
@@ -284,7 +339,7 @@ pub async fn issue(db: &Db, draft: &InvoiceDraft, pdf: &[u8]) -> AppResult<Issue
     }
 
     let folder = settings::require(db, settings::INVOICE_FOLDER, "an invoice folder").await?;
-    let path = destination(&folder, &draft.file_name)?;
+    let path = destination(&folder, &draft.period_start, &draft.client.name, &draft.file_name)?;
     let path_text = path.to_string_lossy().to_string();
 
     let mut tx = db.begin().await?;
@@ -348,8 +403,19 @@ pub async fn issue(db: &Db, draft: &InvoiceDraft, pdf: &[u8]) -> AppResult<Issue
     })
 }
 
+/// Where an invoice is filed: `<folder>/<year>/Q<n>/<client>/<file>`.
+///
+/// The year and quarter are the billing period's, not the issue date's: tax is
+/// reported by the quarter the work was done in, and an invoice issued late
+/// still belongs to that quarter.
+///
 /// Rejects a filename that tries to escape the configured folder.
-fn destination(folder: &str, file_name: &str) -> AppResult<PathBuf> {
+fn destination(
+    folder: &str,
+    period_start: &str,
+    client_name: &str,
+    file_name: &str,
+) -> AppResult<PathBuf> {
     let trimmed = file_name.trim();
 
     if trimmed.is_empty()
@@ -362,7 +428,30 @@ fn destination(folder: &str, file_name: &str) -> AppResult<PathBuf> {
         )));
     }
 
-    Ok(Path::new(folder).join(trimmed))
+    let period = validate::date_bound("period start", period_start)?;
+    let month: u32 = period[5..7].parse().unwrap_or(1);
+
+    Ok(Path::new(folder)
+        .join(&period[0..4])
+        .join(format!("Q{}", (month - 1) / 3 + 1))
+        .join(folder_name(client_name))
+        .join(trimmed))
+}
+
+/// A client's name as a folder name: kept readable, with only what a path
+/// cannot hold replaced, and never `.`, `..` or hidden.
+fn folder_name(name: &str) -> String {
+    let cleaned: String = name
+        .trim()
+        .chars()
+        .map(|c| if matches!(c, '/' | '\\' | ':') || c.is_control() { '-' } else { c })
+        .collect();
+    let cleaned = cleaned.trim_start_matches('.').trim().to_string();
+    if cleaned.is_empty() {
+        "Client".to_string()
+    } else {
+        cleaned
+    }
 }
 
 fn write_pdf(path: &Path, pdf: &[u8]) -> AppResult<()> {
@@ -393,6 +482,26 @@ mod tests {
     }
 
     #[test]
+    fn invoices_are_filed_by_year_quarter_and_client() {
+        let path = |period: &str| destination("/inv", period, "Acme Inc", "a.pdf").unwrap();
+        assert_eq!(path("2026-01-01"), Path::new("/inv/2026/Q1/Acme Inc/a.pdf"));
+        assert_eq!(path("2026-03-31"), Path::new("/inv/2026/Q1/Acme Inc/a.pdf"));
+        assert_eq!(path("2026-04-01"), Path::new("/inv/2026/Q2/Acme Inc/a.pdf"));
+        assert_eq!(path("2026-09-15"), Path::new("/inv/2026/Q3/Acme Inc/a.pdf"));
+        assert_eq!(path("2026-12-01"), Path::new("/inv/2026/Q4/Acme Inc/a.pdf"));
+        assert!(destination("/inv", "2026-01-01", "Acme", "../a.pdf").is_err());
+    }
+
+    #[test]
+    fn client_names_become_safe_folder_names() {
+        assert_eq!(folder_name("Northwind GmbH"), "Northwind GmbH");
+        assert_eq!(folder_name("A/B: C\\D"), "A-B- C-D");
+        assert_eq!(folder_name(".."), "Client");
+        assert_eq!(folder_name(".hidden"), "hidden");
+        assert_eq!(folder_name("   "), "Client");
+    }
+
+    #[test]
     fn dates_print_in_month_day_year() {
         assert_eq!(us_date("2026-08-01"), "08/01/2026");
         assert_eq!(us_date("2025-12-31"), "12/31/2025");
@@ -408,9 +517,9 @@ mod tests {
 
     #[test]
     fn destination_rejects_paths_that_escape_the_folder() {
-        assert!(destination("/tmp/invoices", "invoice-1.pdf").is_ok());
+        assert!(destination("/tmp/invoices", "2026-08-01", "Acme", "invoice-1.pdf").is_ok());
         for bad in ["../escape.pdf", "sub/dir.pdf", "..", "  ", "a\\b.pdf"] {
-            assert!(destination("/tmp/invoices", bad).is_err(), "{bad:?} should be rejected");
+            assert!(destination("/tmp/invoices", "2026-08-01", "Acme", bad).is_err(), "{bad:?} should be rejected");
         }
     }
 }

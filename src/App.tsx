@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { open } from "@tauri-apps/plugin-dialog";
 import { ToggleGroup, Tooltip } from "radix-ui";
 
 import {
@@ -20,11 +21,12 @@ import { applyThemeChoice, loadThemeChoice, type ThemeChoice } from "./lib/theme
 import { useToday } from "./lib/useToday";
 import { useUpdates } from "./lib/useUpdates";
 import { DayPanel, type EntryFocus } from "./components/DayPanel";
+import { ImportDialog } from "./components/ImportDialog";
 import { InvoiceDialog } from "./components/InvoiceDialog";
 import { MonthView } from "./components/MonthView";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateBanner } from "./components/UpdateBanner";
-import { Button, CloseDot, InvoiceIcon, SettingsIcon } from "./components/ui";
+import { Button, CloseDot, ImportIcon, InvoiceIcon, SettingsIcon } from "./components/ui";
 import "./styles.css";
 
 type View = "month" | "settings";
@@ -42,6 +44,8 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [settings, setSettings] = useState<Settings>({});
   const [invoicing, setInvoicing] = useState(false);
+  /** The spreadsheet being imported, while the import dialog is open. */
+  const [importPath, setImportPath] = useState<string | null>(null);
   const [loadingMonth, setLoadingMonth] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -141,6 +145,20 @@ export default function App() {
     setSelectedDay(null);
   }
 
+  async function pickImport() {
+    try {
+      const picked = await open({
+        multiple: false,
+        title: "Import payments",
+        filters: [{ name: "Spreadsheet", extensions: ["xlsx"] }],
+      });
+      // The picker returns null when dismissed, which is not an error.
+      if (typeof picked === "string") setImportPath(picked);
+    } catch (caught) {
+      setLoadError(errorMessage(caught));
+    }
+  }
+
   const liveProjects = useMemo(
     () => projects.filter((project) => project.archivedAt === null),
     [projects],
@@ -182,6 +200,14 @@ export default function App() {
             </ToggleGroup.Root>
           )}
           <span className="titlebar-actions">
+            <Button
+              variant="quiet"
+              onClick={() => void pickImport()}
+              aria-label="Import payments from a spreadsheet"
+              title="Import payments from a spreadsheet"
+            >
+              <ImportIcon />
+            </Button>
             <Button
               variant="quiet"
               onClick={() => setInvoicing(true)}
@@ -268,6 +294,19 @@ export default function App() {
             />
           )}
         </div>
+
+        {importPath !== null && (
+          <ImportDialog
+            path={importPath}
+            clients={clients}
+            projects={liveProjects}
+            onClose={() => setImportPath(null)}
+            onImported={() => {
+              setImportPath(null);
+              void loadMonth(cursor);
+            }}
+          />
+        )}
 
         {invoicing && (
           <InvoiceDialog

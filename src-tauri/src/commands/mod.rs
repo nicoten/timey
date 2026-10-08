@@ -11,8 +11,10 @@ use tauri::State;
 use crate::db::{self, Db};
 use crate::mail::{self, EmailAction};
 use crate::error::AppResult;
+use crate::import;
 use crate::model::{
-    Client, Contact, Entry, EntryDetail, InvoiceCandidate, InvoiceDraft, IssuedInvoice, Project,
+    Client, Contact, Entry, EntryDetail, FixedEntryInput, ImportPreview, InvoiceCandidate,
+    InvoiceDraft, IssuedInvoice, IssuedInvoiceSummary, Project,
 };
 
 #[tauri::command]
@@ -229,6 +231,12 @@ pub async fn invoice_candidates(
     db::invoices::candidates(&db, client_id, &from, &to).await
 }
 
+/// Invoices already issued to this client, so the same work is not billed twice.
+#[tauri::command]
+pub async fn invoices_issued(db: State<'_, Db>, client_id: i64) -> AppResult<Vec<IssuedInvoiceSummary>> {
+    db::invoices::issued_for_client(&db, client_id).await
+}
+
 /// Everything needed to render the document, including the number it will take.
 #[tauri::command]
 pub async fn invoice_prepare(
@@ -266,4 +274,36 @@ pub async fn invoice_email(db: State<'_, Db>, invoice_id: i64) -> AppResult<Emai
         &plan.file_path,
         plan.recipients,
     )
+}
+
+// --- importing -------------------------------------------------------------
+
+/// Reads the first sheet of a spreadsheet and finds the payments in it.
+#[tauri::command]
+pub async fn import_read(path: String) -> AppResult<ImportPreview> {
+    // calamine reads synchronously; keep it off the async runtime's threads.
+    tauri::async_runtime::spawn_blocking(move || import::read_xlsx(std::path::Path::new(&path)))
+        .await
+        .map_err(|err| crate::error::AppError::Io(err.to_string()))?
+}
+
+/// For each row, whether it has already been imported.
+#[tauri::command]
+pub async fn import_duplicates(db: State<'_, Db>, rows: Vec<FixedEntryInput>) -> AppResult<Vec<bool>> {
+    db::entries::fixed_exist(&db, &rows).await
+}
+
+/// Stores the reviewed rows as fixed-price entries, all or none.
+#[tauri::command]
+pub async fn import_commit(db: State<'_, Db>, rows: Vec<FixedEntryInput>) -> AppResult<Vec<Entry>> {
+    db::entries::create_fixed_many(&db, &rows).await
+}
+
+// --- window ----------------------------------------------------------------
+
+/// Resizes the popover in logical points, keeping it centred where it was and
+/// its top edge in place, so it still hangs from the menu bar icon.
+#[tauri::command]
+pub fn popover_resize(window: tauri::WebviewWindow, width: f64, height: f64) -> Result<(), String> {
+    crate::resize_popover(&window, width, height).map_err(|err| err.to_string())
 }

@@ -1020,6 +1020,11 @@ async fn issuing_writes_the_file_and_records_the_lines() {
 
     assert_eq!(issued.number, 1);
     let written = std::path::Path::new(&issued.file_path);
+    // Filed by the year and quarter the work was done in, then by client.
+    assert_eq!(
+        written,
+        folder.join("2026").join("Q3").join("Northwind").join("invoice-0001-northwind-2026-08.pdf")
+    );
     assert!(written.exists(), "the PDF should be on disk at {}", issued.file_path);
     assert_eq!(std::fs::read(written).unwrap(), b"%PDF-1.4 pretend");
 
@@ -1137,4 +1142,104 @@ async fn previous_day_crosses_months_and_years() {
     assert_eq!(previous_day("2026-01-01").unwrap(), "2025-12-31");
     assert_eq!(previous_day("2026-08-15").unwrap(), "2026-08-14");
     assert!(previous_day("not-a-date").is_err());
+}
+
+// --- importing -------------------------------------------------------------
+
+use timey_lib::model::FixedEntryInput;
+
+fn payment(project_id: i64, name: &str, date: &str, amount_cents: i64) -> FixedEntryInput {
+    FixedEntryInput { project_id, name: name.into(), date: date.into(), amount_cents }
+}
+
+#[tokio::test]
+async fn an_import_stores_every_row_as_a_fixed_entry() {
+    let db = fresh_db().await;
+    let (_, project_id) = client_with_project(&db).await;
+
+    let created = db::entries::create_fixed_many(
+        &db,
+        &[
+            payment(project_id, "Sprint 18", "2026-09-03", 432_100),
+            payment(project_id, "Sprint 19", "2026-09-17", 450_050),
+        ],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(created.len(), 2);
+    assert_eq!(created[1].started_at, "2026-09-17T00:00");
+    assert_eq!(created[1].duration_minutes, 0);
+    assert_eq!(created[1].amount_cents, Some(450_050));
+}
+
+#[tokio::test]
+async fn an_import_with_a_bad_row_stores_nothing() {
+    let db = fresh_db().await;
+    let (_, project_id) = client_with_project(&db).await;
+
+    let error = db::entries::create_fixed_many(
+        &db,
+        &[
+            payment(project_id, "Sprint 18", "2026-09-03", 432_100),
+            payment(project_id, "   ", "2026-09-17", 450_050),
+        ],
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().starts_with("Row 2:"), "{error}");
+    let stored = db::entries::list_in_range(&db, "2026-09-01", "2026-10-01", None).await.unwrap();
+    assert!(stored.is_empty(), "the first row should have been rolled back");
+}
+
+#[tokio::test]
+async fn already_imported_payments_are_recognized() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = client_with_project(&db).await;
+    let other = db::projects::create(&db, client_id, "ACME-002", "App", None, None).await.unwrap();
+    db::entries::create_fixed(&db, project_id, "Sprint 18", "2026-09-03", 432_100).await.unwrap();
+
+    let found = db::entries::fixed_exist(
+        &db,
+        &[
+            payment(project_id, "anything", "2026-09-03", 432_100),
+            payment(project_id, "anything", "2026-09-03", 432_000),
+            payment(project_id, "anything", "2026-09-04", 432_100),
+            payment(other.id, "anything", "2026-09-03", 432_100),
+            payment(project_id, "anything", "not a date", 432_100),
+        ],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(found, vec![true, false, false, false, false]);
+}
+
+#[tokio::test]
+async fn issued_invoices_are_listed_with_the_projects_they_billed() {
+    let db = fresh_db().await;
+    let (client_id, project_id) = billable_setup(&db).await;
+    let folder = scratch_dir("issued-list");
+    let _ = std::fs::remove_dir_all(&folder);
+    settings::set(&db, settings::INVOICE_FOLDER, folder.to_str().unwrap()).await.unwrap();
+
+    assert!(db::invoices::issued_for_client(&db, client_id).await.unwrap().is_empty());
+
+    let draft = db::invoices::prepare(&db, client_id, &[project_id], "2026-08-01", "2026-09-01")
+        .await
+        .unwrap();
+    let issued = db::invoices::issue(&db, &draft, b"%PDF").await.unwrap();
+    std::fs::remove_dir_all(&folder).ok();
+
+    let listed = db::invoices::issued_for_client(&db, client_id).await.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].id, issued.id);
+    assert_eq!(listed[0].period_start, "2026-08-01");
+    assert_eq!(listed[0].period_end, "2026-09-01");
+    assert_eq!(listed[0].project_ids, vec![project_id]);
+    assert_eq!(listed[0].file_path, issued.file_path);
+
+    let other = db::clients::create(&db, "Someone Else", None, None, "USD").await.unwrap();
+    assert!(db::invoices::issued_for_client(&db, other.id).await.unwrap().is_empty());
 }

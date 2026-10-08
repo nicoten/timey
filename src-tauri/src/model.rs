@@ -136,6 +136,25 @@ pub struct InvoiceDraft {
     pub file_name: String,
 }
 
+/// An invoice already issued, as the invoice dialog needs it to warn against
+/// billing the same work twice.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssuedInvoiceSummary {
+    pub id: i64,
+    pub number: i64,
+    pub issue_date: String,
+    /// Inclusive start of the billing period.
+    pub period_start: String,
+    /// Exclusive end.
+    pub period_end: String,
+    pub total_cents: i64,
+    pub currency: String,
+    pub file_path: String,
+    /// The projects it has lines for, still existing.
+    pub project_ids: Vec<i64>,
+}
+
 /// Where an issued invoice ended up.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -143,4 +162,53 @@ pub struct IssuedInvoice {
     pub id: i64,
     pub number: i64,
     pub file_path: String,
+}
+
+// --- importing --------------------------------------------------------------
+
+/// A spreadsheet read for import, before anything is stored.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPreview {
+    pub sheet_name: String,
+    pub columns: ImportColumns,
+    pub rows: Vec<ImportRow>,
+    /// Rows with a date but an amount of zero or less: money going out.
+    pub skipped_outgoing: i64,
+}
+
+/// The header text of each column used, so the person can see what was picked.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportColumns {
+    pub date: String,
+    pub description: Option<String>,
+    pub amount: String,
+    pub currency: Option<String>,
+}
+
+/// One incoming payment found in the spreadsheet.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportRow {
+    /// 1-based, as the spreadsheet numbers it.
+    pub source_row: i64,
+    /// `YYYY-MM-DD`.
+    pub date: String,
+    /// The sheet's own text, which may be empty.
+    pub description: String,
+    pub amount_cents: i64,
+    /// As the sheet writes it, upper-cased.
+    pub currency: Option<String>,
+}
+
+/// A reviewed row, to be stored as a fixed-price entry.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FixedEntryInput {
+    pub project_id: i64,
+    pub name: String,
+    /// `YYYY-MM-DD`.
+    pub date: String,
+    pub amount_cents: i64,
 }

@@ -31,3 +31,8 @@ Data is organized as follows:
 ## Invoices
 The app can generate simple PDF invoices that include the aggregate hours for a client. If Apple mail is installed, it can open it with a simple email and pre-filled contacts for the client.
 
+
+Invoices are filed inside the chosen folder by year, quarter and client — `2026/Q3/Northwind GmbH/invoice-0012-….pdf` — using the quarter of the period billed rather than the day the invoice was issued. The month picker is grouped the same way, marks months a client has already been invoiced for, and asks before invoicing such a month again.
+
+## Importing payments
+Payments already received can be imported from a bank's spreadsheet export (`.xlsx`, such as BBVA's "Últimos movimientos"). The date, description and amount columns are found by their headings and contents, wherever the header row sits; outgoing payments are left out. Every row can be edited before it is imported, and each becomes a fixed-price entry. Payments already imported from an earlier, overlapping export are recognized and left unchecked.

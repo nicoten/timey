@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT EXISTS (\n                SELECT 1 FROM entries\n                WHERE project_id = ?1 AND started_at = ?2 AND amount_cents = ?3\n            ) AS \"exists!: bool\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists!: bool",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "843c6c22f02ad3c9dd2dedf4c05f166bebbc5c285ee2aac330b55a4d187a101c"
+}

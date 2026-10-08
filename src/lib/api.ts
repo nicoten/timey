@@ -376,6 +376,27 @@ export function invoiceCandidates(
   return invoke("invoice_candidates", { clientId, from, to });
 }
 
+/** An invoice already issued, for warning against billing the same work twice. */
+export interface IssuedInvoiceSummary {
+  id: number;
+  number: number;
+  issueDate: string;
+  /** Inclusive start of the billing period. */
+  periodStart: string;
+  /** Exclusive end. */
+  periodEnd: string;
+  totalCents: number;
+  currency: string;
+  filePath: string;
+  /** The projects it has lines for. */
+  projectIds: number[];
+}
+
+/** Every invoice issued to this client, latest period first. */
+export function invoicesIssued(clientId: number): Promise<IssuedInvoiceSummary[]> {
+  return invoke("invoices_issued", { clientId });
+}
+
 export function invoicePrepare(
   clientId: number,
   projectIds: number[],
@@ -408,4 +429,64 @@ export interface EmailAction {
 /** Opens a mail draft for an issued invoice, addressed to the client's contacts. */
 export function invoiceEmail(invoiceId: number): Promise<EmailAction> {
   return invoke("invoice_email", { invoiceId });
+}
+
+// --- importing -------------------------------------------------------------
+
+/** A spreadsheet read for import, before anything is stored. */
+export interface ImportPreview {
+  sheetName: string;
+  /** The header text of each column used. */
+  columns: {
+    date: string;
+    description: string | null;
+    amount: string;
+    currency: string | null;
+  };
+  rows: ImportRow[];
+  /** Rows with an amount of zero or less, left out as money going out. */
+  skippedOutgoing: number;
+}
+
+/** One incoming payment found in the spreadsheet. */
+export interface ImportRow {
+  /** 1-based, as the spreadsheet numbers it. */
+  sourceRow: number;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  /** The sheet's own text, which may be empty. */
+  description: string;
+  amountCents: number;
+  /** As the sheet writes it, upper-cased. */
+  currency: string | null;
+}
+
+/** A reviewed row, to be stored as a fixed-price entry. */
+export interface FixedEntryInput {
+  projectId: number;
+  name: string;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  amountCents: number;
+}
+
+export function importRead(path: string): Promise<ImportPreview> {
+  return invoke("import_read", { path });
+}
+
+/** For each row, whether a matching fixed-price entry already exists. */
+export function importDuplicates(rows: FixedEntryInput[]): Promise<boolean[]> {
+  return invoke("import_duplicates", { rows });
+}
+
+/** Stores every row as a fixed-price entry, or none of them. */
+export function importCommit(rows: FixedEntryInput[]): Promise<Entry[]> {
+  return invoke("import_commit", { rows });
+}
+
+// --- window ----------------------------------------------------------------
+
+/** Resizes the popover in points, keeping it hanging from the menu bar icon. */
+export function popoverResize(width: number, height: number): Promise<void> {
+  return invoke("popover_resize", { width, height });
 }

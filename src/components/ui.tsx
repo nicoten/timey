@@ -97,6 +97,19 @@ export interface DropdownOption {
   label: string;
   /** Shown but unpickable, for a choice the rest of the form rules out. */
   disabled?: boolean;
+  /** A heading shared by consecutive options, such as `2026 · Q3`. */
+  group?: string;
+}
+
+/** Consecutive options with the same `group`, kept in order. */
+function groupRuns(options: DropdownOption[]): { label?: string; options: DropdownOption[] }[] {
+  const runs: { label?: string; options: DropdownOption[] }[] = [];
+  for (const option of options) {
+    const last = runs[runs.length - 1];
+    if (last && last.label === option.group) last.options.push(option);
+    else runs.push({ label: option.group, options: [option] });
+  }
+  return runs;
 }
 
 /**
@@ -138,16 +151,26 @@ export function Dropdown({
         >
           <Select.ScrollUpButton className="select-scroll">▴</Select.ScrollUpButton>
           <Select.Viewport className="select-viewport">
-            {options.map((option) => (
-              <Select.Item
-                key={option.value}
-                value={option.value}
-                disabled={option.disabled}
-                className={`select-item${mono ? " num" : ""}`}
-              >
-                <Select.ItemText>{option.label}</Select.ItemText>
-              </Select.Item>
-            ))}
+            {groupRuns(options).map((run, index) => {
+              const items = run.options.map((option) => (
+                <Select.Item
+                  key={option.value}
+                  value={option.value}
+                  disabled={option.disabled}
+                  className={`select-item${mono ? " num" : ""}`}
+                >
+                  <Select.ItemText>{option.label}</Select.ItemText>
+                </Select.Item>
+              ));
+              return run.label === undefined ? (
+                items
+              ) : (
+                <Select.Group key={`${run.label}-${index}`}>
+                  <Select.Label className="select-label">{run.label}</Select.Label>
+                  {items}
+                </Select.Group>
+              );
+            })}
           </Select.Viewport>
           <Select.ScrollDownButton className="select-scroll">▾</Select.ScrollDownButton>
         </Select.Content>
@@ -230,6 +253,7 @@ export function Modal({
   busy = false,
   secondaryLabel,
   onSecondary,
+  wide = false,
   children,
 }: {
   title: string;
@@ -241,6 +265,8 @@ export function Modal({
   /** When given, a second full-width action sits beside the primary one. */
   secondaryLabel?: string;
   onSecondary?: () => void;
+  /** Fills the window instead of keeping to a form's width, for tables. */
+  wide?: boolean;
   children: ReactNode;
 }) {
   const hasSecondary = secondaryLabel !== undefined && onSecondary !== undefined;
@@ -255,7 +281,7 @@ export function Modal({
       <Dialog.Portal>
         <Dialog.Overlay className="scrim" />
         {/* No description element, so opt out rather than leave a dangling id. */}
-        <Dialog.Content className="modal" aria-describedby={undefined}>
+        <Dialog.Content className={`modal${wide ? " is-wide" : ""}`} aria-describedby={undefined}>
           <form
             className="modal-form"
             onSubmit={(event) => {
@@ -342,6 +368,18 @@ export function InvoiceIcon() {
         <path d="M3.4 1.9h6.2l3 3v9.2H3.4z" strokeLinejoin="round" />
         <path d="M9.4 2.1v3h3" strokeLinejoin="round" />
         <path d="M5.7 8.2h4.6M5.7 10.8h3" />
+      </g>
+    </svg>
+  );
+}
+
+/** A tray with an arrow coming down into it, for importing a spreadsheet. */
+export function ImportIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 1.9v7.6M5 6.6l3 3 3-3" />
+        <path d="M2.4 9.6v3.9h11.2V9.6" />
       </g>
     </svg>
   );

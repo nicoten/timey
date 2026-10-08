@@ -1,13 +1,14 @@
 pub mod commands;
 pub mod db;
 pub mod error;
+pub mod import;
 pub mod mail;
 pub mod model;
 pub mod validate;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager, PhysicalPosition, Rect, WebviewWindow};
+use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, Rect, WebviewWindow};
 
 /// Filename inside the platform app-data directory. On macOS this resolves to
 /// `~/Library/Application Support/com.nicotejera.timey/timey.db`.
@@ -107,6 +108,31 @@ fn position_under_tray<R: tauri::Runtime>(
     }
 
     window.set_position(PhysicalPosition::new(x, y))
+}
+
+/// Resizes the popover about its top centre, kept on screen. See `popover_resize`.
+pub fn resize_popover<R: tauri::Runtime>(
+    window: &WebviewWindow<R>,
+    width: f64,
+    height: f64,
+) -> tauri::Result<()> {
+    let before_position = window.outer_position()?;
+    let before_size = window.outer_size()?;
+    let centre = f64::from(before_position.x) + f64::from(before_size.width) / 2.0;
+
+    window.set_size(LogicalSize::new(width, height))?;
+
+    let size = window.outer_size()?;
+    let mut x = centre - f64::from(size.width) / 2.0;
+    if let Some(monitor) = window.current_monitor()? {
+        let origin = monitor.position();
+        let bounds = monitor.size();
+        let left = f64::from(origin.x) + EDGE_MARGIN;
+        let right = f64::from(origin.x + bounds.width as i32) - f64::from(size.width) - EDGE_MARGIN;
+        x = x.clamp(left, right.max(left));
+    }
+
+    window.set_position(PhysicalPosition::new(x, f64::from(before_position.y)))
 }
 
 fn toggle_popover<R: tauri::Runtime>(window: &WebviewWindow<R>, rect: Rect) {
@@ -234,9 +260,14 @@ pub fn run() {
             commands::settings_all,
             commands::settings_set,
             commands::invoice_candidates,
+            commands::invoices_issued,
             commands::invoice_prepare,
             commands::invoice_issue,
             commands::invoice_email,
+            commands::import_read,
+            commands::import_duplicates,
+            commands::import_commit,
+            commands::popover_resize,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

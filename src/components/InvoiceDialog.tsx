@@ -9,16 +9,19 @@ import {
   invoiceEmail,
   invoiceIssue,
   invoicePrepare,
+  invoicesIssued,
   type Client,
   type InvoiceCandidate,
   type EmailAction,
   type IssuedInvoice,
+  type IssuedInvoiceSummary,
   type Settings,
 } from "../lib/api";
-import { currentMonth, monthEndExclusive, monthLabel, monthStart, shiftMonth } from "../lib/dates";
+import { currentMonth, dayLabel, monthEndExclusive, monthLabel, monthStart, shiftMonth } from "../lib/dates";
 import { renderInvoicePdf } from "../lib/invoicePdf";
 import { DEFAULT_CURRENCY, formatMinutes, formatMoney } from "../lib/money";
 import {
+  Button,
   CheckRow,
   DropdownField,
   Empty,
@@ -52,6 +55,26 @@ function candidateSummary(candidate: InvoiceCandidate, currency: string): string
   return candidate.minutes > 0 ? `${hoursDecimal(candidate.minutes)}h · ${money}` : money;
 }
 
+/** Invoices whose period overlaps `[from, to)`. */
+function overlapping(issued: IssuedInvoiceSummary[], from: string, to: string): IssuedInvoiceSummary[] {
+  return issued.filter((invoice) => invoice.periodStart < to && invoice.periodEnd > from);
+}
+
+/** Each project already invoiced for some of `[from, to)`, with the invoice numbers. */
+function billedProjects(
+  issued: IssuedInvoiceSummary[],
+  from: string,
+  to: string,
+): Map<number, number[]> {
+  const billed = new Map<number, number[]>();
+  for (const invoice of overlapping(issued, from, to)) {
+    for (const projectId of invoice.projectIds) {
+      billed.set(projectId, [...(billed.get(projectId) ?? []), invoice.number]);
+    }
+  }
+  return billed;
+}
+
 interface Props {
   clients: Client[];
   settings: Settings;
@@ -62,16 +85,33 @@ interface Props {
 export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Props) {
   const billable = clients.filter((client) => client.archivedAt === null);
 
+  const [clientId, setClientId] = useState(billable[0] ? String(billable[0].id) : "");
+  /** What this client has already been invoiced for. */
+  const [issuedBefore, setIssuedBefore] = useState<IssuedInvoiceSummary[]>([]);
+
   const monthOptions: DropdownOption[] = useMemo(() => {
     const now = currentMonth();
     return Array.from({ length: MONTHS_OFFERED }, (_, index) => {
       const cursor = shiftMonth(now, -index);
-      return { value: monthStart(cursor), label: monthLabel(cursor) };
+      const start = monthStart(cursor);
+      const invoiced = issuedBefore.some((invoice) => invoice.periodStart === start);
+      // Grouped the way issued invoices are filed: by year, then quarter.
+      const quarter = Math.floor((cursor.month - 1) / 3) + 1;
+      return {
+        value: start,
+        label: `${monthLabel(cursor)}${invoiced ? " · invoiced" : ""}`,
+        group: `${cursor.year} · Q${quarter}`,
+      };
     });
-  }, []);
+  }, [issuedBefore]);
 
-  const [clientId, setClientId] = useState(billable[0] ? String(billable[0].id) : "");
-  const [periodStart, setPeriodStart] = useState(monthOptions[0].value);
+  const [periodStart, setPeriodStart] = useState(() => monthStart(currentMonth()));
+
+  // Another client's invoices say nothing about this one's; drop them until
+  // this client's arrive.
+  useEffect(() => {
+    setIssuedBefore([]);
+  }, [clientId]);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [candidates, setCandidates] = useState<InvoiceCandidate[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -79,6 +119,8 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
   const [issued, setIssued] = useState<IssuedInvoice | null>(null);
   const [emailing, setEmailing] = useState(false);
   const [sent, setSent] = useState<EmailAction | null>(null);
+  /** Asking before a second invoice for a period that already has one. */
+  const [confirmingRepeat, setConfirmingRepeat] = useState(false);
 
   const periodEnd = useMemo(() => {
     const [year, month] = periodStart.split("-").map(Number);
@@ -102,13 +144,22 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
     setCandidates(null);
     setError(null);
 
-    invoiceCandidates(Number(clientId), periodStart, periodEnd)
-      .then((found) => {
+    Promise.all([
+      invoiceCandidates(Number(clientId), periodStart, periodEnd),
+      invoicesIssued(Number(clientId)),
+    ])
+      .then(([found, issued]) => {
         if (!current) return;
+        const billed = billedProjects(issued, periodStart, periodEnd);
+        setIssuedBefore(issued);
         setCandidates(found);
+        // Work already on an invoice for this period starts unchecked; it can
+        // still be picked, for entries added after that invoice went out.
         setSelected(
           new Set(
-            found.filter(isBillable).map((candidate) => candidate.projectId),
+            found
+              .filter((candidate) => isBillable(candidate) && !billed.has(candidate.projectId))
+              .map((candidate) => candidate.projectId),
           ),
         );
       })
@@ -120,6 +171,9 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
       current = false;
     };
   }, [clientId, periodStart, periodEnd]);
+
+  const earlier = overlapping(issuedBefore, periodStart, periodEnd);
+  const billed = billedProjects(issuedBefore, periodStart, periodEnd);
 
   const chosen = (candidates ?? []).filter((candidate) => selected.has(candidate.projectId));
   const totalCents = chosen.reduce((sum, candidate) => sum + candidateCents(candidate), 0);
@@ -160,11 +214,36 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
       // and the number in the record are the same value.
       const pdf = renderInvoicePdf(draft);
       setIssued(await invoiceIssue(draft, pdf));
+      setConfirmingRepeat(false);
     } catch (caught) {
       setError(caught);
     } finally {
       setBusy(false);
     }
+  }
+
+  if (confirmingRepeat) {
+    const numbers = earlier.map((invoice) => invoice.number).join(" and ");
+    const month = monthOptions.find((option) => option.value === periodStart)?.label.replace(" · invoiced", "");
+    return (
+      <Modal
+        title="Invoice this month again?"
+        submitLabel={busy ? "Generating…" : "Generate anyway"}
+        onSubmit={() => void generate()}
+        secondaryLabel="Go back"
+        onSecondary={() => setConfirmingRepeat(false)}
+        onClose={onClose}
+        canSubmit={!busy}
+        busy={busy}
+      >
+        <p className="invoice-warning" role="alert">
+          {month ?? "This month"} is already covered by invoice {numbers}. A new invoice takes
+          the next number and bills every entry of the selected projects in that month, including
+          any already on an earlier invoice.
+        </p>
+        <ErrorNote error={error} />
+      </Modal>
+    );
   }
 
   if (issued !== null) {
@@ -227,7 +306,7 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
     <Modal
       title="New invoice"
       submitLabel={busy ? "Generating…" : "Generate invoice"}
-      onSubmit={() => void generate()}
+      onSubmit={() => (earlier.length > 0 ? setConfirmingRepeat(true) : void generate())}
       onClose={onClose}
       canSubmit={selected.size > 0 && !busy}
       busy={busy}
@@ -247,6 +326,19 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
         onChange={setPeriodStart}
         options={monthOptions}
       />
+
+      {earlier.map((invoice) => (
+        <div key={invoice.id} className="invoice-existing" role="status">
+          <span>
+            Invoice {invoice.number} already covers this period: issued{" "}
+            {dayLabel(invoice.issueDate)} {invoice.issueDate.slice(0, 4)},{" "}
+            {formatMoney(invoice.totalCents, invoice.currency)}.
+          </span>
+          <Button variant="quiet" onClick={() => void revealItemInDir(invoice.filePath).catch(() => {})}>
+            Show
+          </Button>
+        </div>
+      ))}
 
       <div className="field">
         <span>Projects</span>
@@ -277,6 +369,8 @@ export function InvoiceDialog({ clients, settings, onClose, onOpenSettings }: Pr
                   </span>
                   <span className="num">
                     {unbillable ? "no rate" : candidateSummary(candidate, currency)}
+                    {billed.has(candidate.projectId) &&
+                      ` · on invoice ${billed.get(candidate.projectId)!.join(", ")}`}
                   </span>
                 </CheckRow>
               );

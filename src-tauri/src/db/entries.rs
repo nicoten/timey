@@ -1,6 +1,6 @@
 use crate::db::Db;
 use crate::error::{AppError, AppResult};
-use crate::model::{Entry, EntryDetail};
+use crate::model::{Entry, EntryDetail, FixedEntryInput};
 use crate::validate;
 
 /// Entries whose start falls in `[from, to)`, joined to project and client.
@@ -105,14 +105,70 @@ pub async fn create_fixed(
     insert(db, project_id, name, &started_at, 0, Some(amount_cents)).await
 }
 
-async fn insert(
-    db: &Db,
+/// Several fixed-price entries at once, as an import confirms them: either all
+/// are stored or none are. A rejected row is named by its position, 1-based.
+pub async fn create_fixed_many(db: &Db, rows: &[FixedEntryInput]) -> AppResult<Vec<Entry>> {
+    let mut tx = db.begin().await?;
+    let mut created = Vec::with_capacity(rows.len());
+
+    for (index, row) in rows.iter().enumerate() {
+        let in_row = |err: AppError| match err {
+            AppError::Validation(message) => {
+                AppError::validation(format!("Row {}: {message}", index + 1))
+            }
+            other => other,
+        };
+        let started_at = validate::fixed_day(&row.date).map_err(in_row)?;
+        let amount_cents = validate::amount_cents(row.amount_cents).map_err(in_row)?;
+        let entry = insert(&mut *tx, row.project_id, &row.name, &started_at, 0, Some(amount_cents))
+            .await
+            .map_err(in_row)?;
+        created.push(entry);
+    }
+
+    tx.commit().await?;
+    Ok(created)
+}
+
+/// Whether a fixed-price entry for this project, day and amount already exists,
+/// for each row given. Bank exports overlap, so the same payment turns up in
+/// more than one. A row whose date does not parse matches nothing.
+pub async fn fixed_exist(db: &Db, rows: &[FixedEntryInput]) -> AppResult<Vec<bool>> {
+    let mut found = Vec::with_capacity(rows.len());
+    for row in rows {
+        let Ok(started_at) = validate::fixed_day(&row.date) else {
+            found.push(false);
+            continue;
+        };
+        let exists = sqlx::query_scalar!(
+            r#"
+            SELECT EXISTS (
+                SELECT 1 FROM entries
+                WHERE project_id = ?1 AND started_at = ?2 AND amount_cents = ?3
+            ) AS "exists!: bool"
+            "#,
+            row.project_id,
+            started_at,
+            row.amount_cents
+        )
+        .fetch_one(db)
+        .await?;
+        found.push(exists);
+    }
+    Ok(found)
+}
+
+async fn insert<'e, E>(
+    executor: E,
     project_id: i64,
     name: &str,
     started_at: &str,
     duration_minutes: i64,
     amount_cents: Option<i64>,
-) -> AppResult<Entry> {
+) -> AppResult<Entry>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Sqlite>,
+{
     let name = validate::non_empty("Entry name", name)?;
 
     let entry = sqlx::query_as!(
@@ -129,7 +185,7 @@ async fn insert(
         duration_minutes,
         amount_cents
     )
-    .fetch_one(db)
+    .fetch_one(executor)
     .await?;
 
     Ok(entry)

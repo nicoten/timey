@@ -658,6 +658,35 @@ body {
   resize: vertical;
 }
 
+/* A warning, not an error: billing the same period twice can be deliberate. */
+.invoice-existing {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 6px 6px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  background: var(--band);
+  border-left: 2px solid var(--fill-edge);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.invoice-warning {
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: rgb(173 63 40 / 0.08);
+  border-left: 2px solid var(--stamp);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.invoice-existing .btn {
+  flex: 0 0 auto;
+}
+
 .invoice-total {
   display: flex;
   align-items: baseline;
@@ -763,6 +792,15 @@ body {
   border-radius: 2px;
   outline: none;
   cursor: pointer;
+}
+
+.select-label {
+  padding: 7px 8px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
 .select-item.num {
@@ -1302,6 +1340,116 @@ body {
 .loading {
   font-size: 12px;
   color: var(--ink-3);
+}
+
+/* --- importing ------------------------------------------------------------ */
+
+/* The import dialog fills the widened window: a review table has no use for a
+   form's width. */
+.modal.is-wide {
+  max-width: none;
+}
+
+.import-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.import-controls .field.is-inline .select-trigger {
+  max-width: none;
+}
+
+.import-apply {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.import-apply .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.import-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.import-row {
+  display: grid;
+  grid-template-columns: 20px 132px minmax(0, 1fr) 128px 164px;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.import-row.is-head {
+  padding-top: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.import-row .text-input,
+.import-row .select-trigger {
+  padding: 5px 7px;
+  font-size: 12px;
+}
+
+/* One line each, cut short rather than wrapped, so every row stays one high. */
+.import-controls .select-trigger,
+.import-row .select-trigger {
+  white-space: nowrap;
+}
+
+.import-controls .select-trigger > span:first-child,
+.import-row .select-trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.import-row.is-excluded .text-input,
+.import-row.is-excluded .select-trigger {
+  opacity: 0.5;
+}
+
+.import-row.is-invalid {
+  box-shadow: inset 2px 0 0 var(--stamp);
+}
+
+.import-amount {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.import-amount .text-input {
+  text-align: right;
+}
+
+.import-currency {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+.import-notes {
+  grid-column: 2 / -1;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+  list-style: none;
+  color: var(--ink-3);
+}
+
+.import-notes .is-problem {
+  color: var(--stamp);
 }
 
 /* --- narrow windows ------------------------------------------------------- */
